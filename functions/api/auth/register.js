@@ -1,49 +1,16 @@
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { "content-type": "application/json; charset=utf-8" }
-  });
-}
+import {
+  ensureAuthTables,
+  formatErrorMessage,
+  generateToken,
+  getSessionExpiresAt,
+  json,
+  sha256
+} from "../_lib.js";
 
-function toHex(buffer) {
-  return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-function randomHex(bytes = 16) {
+function randomHex(bytes = 12) {
   const arr = new Uint8Array(bytes);
   crypto.getRandomValues(arr);
   return [...arr].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-async function sha256(input) {
-  const data = new TextEncoder().encode(input);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return toHex(digest);
-}
-
-function generateToken() {
-  return `${crypto.randomUUID()}-${randomHex(16)}`;
-}
-
-async function ensureAuthTables(env) {
-  await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
-      salt TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )`
-  ).run();
-  await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS sessions (
-      token TEXT PRIMARY KEY,
-      user_id INTEGER NOT NULL,
-      expires_at TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (user_id) REFERENCES users(id)
-    )`
-  ).run();
 }
 
 export async function onRequestPost(context) {
@@ -71,13 +38,13 @@ export async function onRequestPost(context) {
     const userId = userInsert.meta.last_row_id;
 
     const token = generateToken();
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const expiresAt = getSessionExpiresAt();
     await env.DB.prepare(
       "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)"
     ).bind(token, userId, expiresAt).run();
 
     return json({ token, username }, 201);
   } catch (error) {
-    return json({ error: "register failed", detail: String(error && error.message ? error.message : error) }, 500);
+    return json(formatErrorMessage(error, "register failed"), 500);
   }
 }

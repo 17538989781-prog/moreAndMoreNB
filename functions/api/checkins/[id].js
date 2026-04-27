@@ -1,38 +1,10 @@
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { "content-type": "application/json; charset=utf-8" }
-  });
-}
-
-async function ensureCheckinsTable(env) {
-  await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS checkins_v2 (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      type TEXT NOT NULL CHECK (type IN ('SLEEP', 'WAKE')),
-      check_time TEXT NOT NULL,
-      reflection TEXT NOT NULL DEFAULT '',
-      happy_thing TEXT NOT NULL DEFAULT '',
-      plan TEXT NOT NULL DEFAULT '',
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )`
-  ).run();
-}
-
-async function getAuthUser(request, env) {
-  const auth = request.headers.get("authorization") || "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
-  if (!token) return null;
-  const user = await env.DB.prepare(
-    `SELECT u.id, u.username
-     FROM sessions s
-     JOIN users u ON u.id = s.user_id
-     WHERE s.token = ? AND s.expires_at > ?
-     LIMIT 1`
-  ).bind(token, new Date().toISOString()).first();
-  return user || null;
-}
+import {
+  CHECKINS_TABLE,
+  ensureCheckinsTable,
+  formatErrorMessage,
+  getAuthUser,
+  json
+} from "../_lib.js";
 
 export async function onRequestPut(context) {
   try {
@@ -56,13 +28,13 @@ export async function onRequestPut(context) {
     const plan = body.plan == null ? "" : String(body.plan).trim();
 
     await env.DB.prepare(
-      `UPDATE checkins_v2
+      `UPDATE ${CHECKINS_TABLE}
        SET reflection = ?, happy_thing = ?, plan = ?
        WHERE id = ? AND user_id = ?`
     ).bind(reflection, happyThing, plan, id, user.id).run();
 
     return json({ ok: true });
   } catch (error) {
-    return json({ error: "update checkin failed", detail: String(error && error.message ? error.message : error) }, 500);
+    return json(formatErrorMessage(error, "update checkin failed"), 500);
   }
 }

@@ -1,24 +1,9 @@
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { "content-type": "application/json; charset=utf-8" }
-  });
-}
-
-async function ensureCheckinsTable(env) {
-  await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS checkins_v2 (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      type TEXT NOT NULL CHECK (type IN ('SLEEP', 'WAKE')),
-      check_time TEXT NOT NULL,
-      reflection TEXT NOT NULL DEFAULT '',
-      happy_thing TEXT NOT NULL DEFAULT '',
-      plan TEXT NOT NULL DEFAULT '',
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )`
-  ).run();
-}
+import {
+  CHECKINS_TABLE,
+  ensureCheckinsTable,
+  formatErrorMessage,
+  json
+} from "./_lib.js";
 
 export async function onRequestGet(context) {
   try {
@@ -28,7 +13,7 @@ export async function onRequestGet(context) {
 
     const nightOwls = await env.DB.prepare(
       `SELECT u.username, c.check_time, c.reflection, c.happy_thing, c.plan
-       FROM checkins_v2 c
+       FROM ${CHECKINS_TABLE} c
        JOIN users u ON u.id = c.user_id
        WHERE c.type = 'SLEEP'
          AND julianday(c.check_time) >= julianday(?) - 2
@@ -45,7 +30,7 @@ export async function onRequestGet(context) {
 
     const earlyBirds = await env.DB.prepare(
       `SELECT u.username, c.check_time, c.reflection, c.happy_thing, c.plan
-       FROM checkins_v2 c
+       FROM ${CHECKINS_TABLE} c
        JOIN users u ON u.id = c.user_id
        WHERE c.type = 'WAKE'
          AND julianday(c.check_time) >= julianday(?) - 2
@@ -61,6 +46,6 @@ export async function onRequestGet(context) {
       currentTime: nowIso
     });
   } catch (error) {
-    return json({ error: "load leaderboard failed", detail: String(error && error.message ? error.message : error) }, 500);
+    return json(formatErrorMessage(error, "load leaderboard failed"), 500);
   }
 }
