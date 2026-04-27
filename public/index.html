@@ -162,6 +162,11 @@
       <div class="sub-actions" style="justify-content:center;">
         <button id="supplementLatestBtn" class="sub-btn">签到后补填三项</button>
       </div>
+      <div class="sub-actions" style="justify-content:center;">
+        <button id="quickAddReflectionBtn" class="sub-btn">添加心得</button>
+        <button id="quickAddPlanBtn" class="sub-btn">添加计划</button>
+        <button id="quickAddHappyBtn" class="sub-btn">添加高兴的事</button>
+      </div>
     </div>
 
     <div class="card">
@@ -720,6 +725,21 @@
       modalTitle.textContent = "签到后补填：三项内容";
     }
 
+    function openLatestFieldSupplement(field) {
+      if (!historyItemsCache.length) {
+        setMsg("暂无可补填的打卡记录，请先签到", "err");
+        return;
+      }
+      openEdit(historyItemsCache[0], field);
+      if (field === "reflection") {
+        modalTitle.textContent = "快速添加心得";
+      } else if (field === "plan") {
+        modalTitle.textContent = "快速添加计划";
+      } else {
+        modalTitle.textContent = "快速添加高兴的事";
+      }
+    }
+
     async function submitOnlyField(field) {
       const oldField = modalMode.onlyField || null;
       modalMode.onlyField = field;
@@ -906,6 +926,9 @@
       Promise.all([fetchLeaderboard(), fetchComments()]);
     }
     document.getElementById("supplementLatestBtn").addEventListener("click", openLatestSupplement);
+    document.getElementById("quickAddReflectionBtn").addEventListener("click", () => openLatestFieldSupplement("reflection"));
+    document.getElementById("quickAddPlanBtn").addEventListener("click", () => openLatestFieldSupplement("plan"));
+    document.getElementById("quickAddHappyBtn").addEventListener("click", () => openLatestFieldSupplement("happyThing"));
   </script>
 </body>
 </html>
