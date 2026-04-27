@@ -34,6 +34,9 @@
     .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
     .auth-wrap { max-width: 460px; margin: 60px auto; }
     .time-pill { display: inline-block; padding: 4px 10px; border-radius: 999px; background: #eef2ff; color: #1e40af; font-size: 13px; }
+    .status { margin-top: 10px; font-size: 14px; }
+    .status.ok { color: #166534; }
+    .status.err { color: #b91c1c; }
     @media (max-width: 760px) { .leader-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -51,6 +54,7 @@
         <button id="loginBtn" class="primary">登录</button>
       </div>
       <p id="authMsg" class="muted"></p>
+      <p id="globalMsg" class="status"></p>
     </div>
   </div>
 
@@ -123,6 +127,9 @@
     const nightOwlsEl = document.getElementById("nightOwls");
     const earlyBirdsEl = document.getElementById("earlyBirds");
     const currentTimeEl = document.getElementById("currentTime");
+    const registerBtn = document.getElementById("registerBtn");
+    const loginBtn = document.getElementById("loginBtn");
+    const globalMsgEl = document.getElementById("globalMsg");
 
     let modalMode = { type: "CREATE", checkType: "SLEEP", editId: null };
     let currentUser = null;
@@ -144,16 +151,39 @@
       appPanel.classList.toggle("hidden", !loggedIn);
     }
 
+    function setMsg(text, type = "ok") {
+      globalMsgEl.textContent = text || "";
+      globalMsgEl.className = `status ${type}`;
+    }
+
+    async function parseJsonSafe(res) {
+      const text = await res.text();
+      if (!text) return {};
+      try {
+        return JSON.parse(text);
+      } catch {
+        return { error: text.slice(0, 200) || "服务返回非 JSON 数据" };
+      }
+    }
+
     function formatTime(isoString) {
       const d = new Date(isoString);
       return d.toLocaleString("zh-CN", { hour12: false });
     }
 
     async function fetchHistory() {
-      const res = await fetch("/api/checkins", { headers: authHeaders() });
-      if (res.status === 401) return logout();
-      const data = await res.json();
-      renderHistory(data.items || []);
+      try {
+        const res = await fetch("/api/checkins", { headers: authHeaders() });
+        if (res.status === 401) return logout();
+        const data = await parseJsonSafe(res);
+        if (!res.ok) {
+          setMsg(data.error || "加载历史失败", "err");
+          return;
+        }
+        renderHistory(data.items || []);
+      } catch (error) {
+        setMsg(`加载历史失败：${String(error.message || error)}`, "err");
+      }
     }
 
     function renderHistory(items) {
@@ -192,11 +222,22 @@
     }
 
     async function fetchLeaderboard() {
-      const res = await fetch("/api/leaderboard");
-      const data = await res.json();
-      renderRanks(nightOwlsEl, data.nightOwls || []);
-      renderRanks(earlyBirdsEl, data.earlyBirds || []);
-      currentTimeEl.textContent = `当前时间：${formatTime(data.currentTime || new Date().toISOString())}`;
+      try {
+        const res = await fetch("/api/leaderboard");
+        const data = await parseJsonSafe(res);
+        if (!res.ok) {
+          setMsg(data.error || "加载排行榜失败", "err");
+          renderRanks(nightOwlsEl, []);
+          renderRanks(earlyBirdsEl, []);
+          currentTimeEl.textContent = `当前时间：${formatTime(new Date().toISOString())}`;
+          return;
+        }
+        renderRanks(nightOwlsEl, data.nightOwls || []);
+        renderRanks(earlyBirdsEl, data.earlyBirds || []);
+        currentTimeEl.textContent = `当前时间：${formatTime(data.currentTime || new Date().toISOString())}`;
+      } catch (error) {
+        setMsg(`加载排行榜失败：${String(error.message || error)}`, "err");
+      }
     }
 
     function renderRanks(el, rows) {
@@ -250,29 +291,38 @@
       const reflection = forceEmpty ? "" : reflectionEl.value.trim();
       const happyThing = forceEmpty ? "" : happyThingEl.value.trim();
       const plan = forceEmpty ? "" : planEl.value.trim();
-
-      if (modalMode.type === "CREATE") {
-        await fetch("/api/checkins", {
-          method: "POST",
-          headers: { "content-type": "application/json", ...authHeaders() },
-          body: JSON.stringify({
-            type: modalMode.checkType,
-            reflection,
-            happyThing,
-            plan,
-            checkTime: new Date().toISOString()
-          })
-        });
-      } else {
-        await fetch(`/api/checkins/${modalMode.editId}`, {
-          method: "PUT",
-          headers: { "content-type": "application/json", ...authHeaders() },
-          body: JSON.stringify({ reflection, happyThing, plan })
-        });
+      try {
+        let res;
+        if (modalMode.type === "CREATE") {
+          res = await fetch("/api/checkins", {
+            method: "POST",
+            headers: { "content-type": "application/json", ...authHeaders() },
+            body: JSON.stringify({
+              type: modalMode.checkType,
+              reflection,
+              happyThing,
+              plan,
+              checkTime: new Date().toISOString()
+            })
+          });
+        } else {
+          res = await fetch(`/api/checkins/${modalMode.editId}`, {
+            method: "PUT",
+            headers: { "content-type": "application/json", ...authHeaders() },
+            body: JSON.stringify({ reflection, happyThing, plan })
+          });
+        }
+        const data = await parseJsonSafe(res);
+        if (!res.ok) {
+          setMsg(data.error || "保存失败", "err");
+          return;
+        }
+        closeModal();
+        await Promise.all([fetchHistory(), fetchLeaderboard()]);
+        setMsg("保存成功", "ok");
+      } catch (error) {
+        setMsg(`保存失败：${String(error.message || error)}`, "err");
       }
-
-      closeModal();
-      await Promise.all([fetchHistory(), fetchLeaderboard()]);
     }
 
     async function auth(path) {
@@ -282,28 +332,43 @@
         authMsgEl.textContent = "请先输入用户名和密码。";
         return;
       }
-      const res = await fetch(`/api/auth/${path}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ username, password })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        authMsgEl.textContent = data.error || "操作失败";
-        return;
-      }
-      setToken(data.token);
-      currentUser = data.username;
-      welcomeEl.textContent = `你好，${currentUser}`;
-      switchView(true);
+      registerBtn.disabled = true;
+      loginBtn.disabled = true;
       authMsgEl.textContent = "";
-      await Promise.all([fetchHistory(), fetchLeaderboard()]);
+      setMsg(path === "register" ? "注册中..." : "登录中...", "ok");
+      try {
+        const res = await fetch(`/api/auth/${path}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await parseJsonSafe(res);
+        if (!res.ok) {
+          authMsgEl.textContent = data.error || "操作失败";
+          setMsg(data.detail ? `${data.error}：${data.detail}` : (data.error || "操作失败"), "err");
+          return;
+        }
+        setToken(data.token);
+        currentUser = data.username;
+        welcomeEl.textContent = `你好，${currentUser}`;
+        switchView(true);
+        authMsgEl.textContent = "";
+        await Promise.all([fetchHistory(), fetchLeaderboard()]);
+        setMsg(path === "register" ? "注册并登录成功" : "登录成功", "ok");
+      } catch (error) {
+        authMsgEl.textContent = "网络异常，请稍后重试。";
+        setMsg(`请求失败：${String(error.message || error)}`, "err");
+      } finally {
+        registerBtn.disabled = false;
+        loginBtn.disabled = false;
+      }
     }
 
     function logout() {
       localStorage.removeItem("token");
       currentUser = null;
       switchView(false);
+      setMsg("你已退出登录", "ok");
     }
 
     document.getElementById("sleepBtn").addEventListener("click", () => openCreate("SLEEP"));

@@ -20,45 +20,53 @@ async function getAuthUser(request, env) {
 }
 
 export async function onRequestGet(context) {
-  const { request, env } = context;
-  const user = await getAuthUser(request, env);
-  if (!user) return json({ error: "unauthorized" }, 401);
+  try {
+    const { request, env } = context;
+    const user = await getAuthUser(request, env);
+    if (!user) return json({ error: "unauthorized" }, 401);
 
-  const result = await env.DB.prepare(
-    `SELECT c.id, u.username, c.type, c.check_time, c.reflection, c.happy_thing, c.plan
-     FROM checkins c
-     JOIN users u ON u.id = c.user_id
-     WHERE c.user_id = ?
-     ORDER BY c.check_time DESC`
-  ).bind(user.id).all();
+    const result = await env.DB.prepare(
+      `SELECT c.id, u.username, c.type, c.check_time, c.reflection, c.happy_thing, c.plan
+       FROM checkins c
+       JOIN users u ON u.id = c.user_id
+       WHERE c.user_id = ?
+       ORDER BY c.check_time DESC`
+    ).bind(user.id).all();
 
-  return json({ items: result.results || [] });
+    return json({ items: result.results || [] });
+  } catch (error) {
+    return json({ error: "query checkins failed", detail: String(error && error.message ? error.message : error) }, 500);
+  }
 }
 
 export async function onRequestPost(context) {
-  const { request, env } = context;
-  const user = await getAuthUser(request, env);
-  if (!user) return json({ error: "unauthorized" }, 401);
-  const body = await request.json().catch(() => null);
+  try {
+    const { request, env } = context;
+    const user = await getAuthUser(request, env);
+    if (!user) return json({ error: "unauthorized" }, 401);
+    const body = await request.json().catch(() => null);
 
-  if (!body) {
-    return json({ error: "invalid json body" }, 400);
+    if (!body) {
+      return json({ error: "invalid json body" }, 400);
+    }
+
+    const type = body.type;
+    const reflection = body.reflection == null ? "" : String(body.reflection).trim();
+    const happyThing = body.happyThing == null ? "" : String(body.happyThing).trim();
+    const plan = body.plan == null ? "" : String(body.plan).trim();
+    const checkTime = body.checkTime || new Date().toISOString();
+
+    if (type !== "SLEEP" && type !== "WAKE") {
+      return json({ error: "type must be SLEEP or WAKE" }, 400);
+    }
+
+    const insert = await env.DB.prepare(
+      `INSERT INTO checkins (user_id, type, check_time, reflection, happy_thing, plan)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).bind(user.id, type, checkTime, reflection, happyThing, plan).run();
+
+    return json({ id: insert.meta.last_row_id }, 201);
+  } catch (error) {
+    return json({ error: "create checkin failed", detail: String(error && error.message ? error.message : error) }, 500);
   }
-
-  const type = body.type;
-  const reflection = body.reflection == null ? "" : String(body.reflection).trim();
-  const happyThing = body.happyThing == null ? "" : String(body.happyThing).trim();
-  const plan = body.plan == null ? "" : String(body.plan).trim();
-  const checkTime = body.checkTime || new Date().toISOString();
-
-  if (type !== "SLEEP" && type !== "WAKE") {
-    return json({ error: "type must be SLEEP or WAKE" }, 400);
-  }
-
-  const insert = await env.DB.prepare(
-    `INSERT INTO checkins (user_id, type, check_time, reflection, happy_thing, plan)
-     VALUES (?, ?, ?, ?, ?, ?)`
-  ).bind(user.id, type, checkTime, reflection, happyThing, plan).run();
-
-  return json({ id: insert.meta.last_row_id }, 201);
 }
