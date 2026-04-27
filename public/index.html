@@ -27,12 +27,28 @@
     .placeholder { color: #9ca3af; cursor: pointer; }
     .edit-btn { background: transparent; color: #4b5563; padding: 0; font-size: 18px; }
     .leader-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .checkin-wrap { display: grid; place-items: center; gap: 10px; margin-top: 8px; }
+    .checkin-circle {
+      width: 118px;
+      height: 118px;
+      border-radius: 999px;
+      border: 0;
+      color: #fff;
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      box-shadow: 0 12px 24px rgba(37, 99, 235, .28);
+      font-weight: 700;
+      font-size: 18px;
+    }
+    .checkin-circle:active { transform: scale(.98); }
+    .history-nav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .history-nav button { background: #f3f4f6; color: #374151; }
+    .history-nav .active { background: #1d4ed8; color: #fff; }
     .sub-actions { display: flex; gap: 8px; margin-top: 8px; }
     .sub-btn { background: #f3f4f6; color: #374151; padding: 6px 10px; border-radius: 8px; font-size: 12px; }
     .rank-item { border-bottom: 1px dashed #e5e7eb; padding: 10px 0; }
     .rank-top { display: flex; justify-content: space-between; gap: 10px; }
-    .rank-notes { margin-top: 6px; display: grid; gap: 4px; color: #4b5563; font-size: 13px; }
-    .rank-empty { color: #9ca3af; }
+    .tag-row { display: grid; gap: 8px; margin-top: 8px; }
+    .field-title { color: #4b5563; font-size: 13px; }
     .modal-backdrop { position: fixed; inset: 0; display: none; place-items: center; background: rgba(17, 24, 39, .45); z-index: 20; }
     .modal { width: min(700px, 92vw); background: #fff; border-radius: 14px; padding: 16px; }
     .modal.open { display: grid; }
@@ -86,15 +102,20 @@
           <button id="logoutBtn" class="danger">退出登录</button>
         </div>
       </div>
-      <div class="row">
-        <button id="sleepBtn" class="primary">晚睡打卡（可稍后补写）</button>
-        <button id="wakeBtn" class="ghost">早起打卡（可稍后补写）</button>
+      <div class="checkin-wrap">
+        <button id="checkinCircleBtn" class="checkin-circle">打卡</button>
+        <span class="muted">单击后自动判断为「晚睡/早起」，并可立即补写三项内容</span>
       </div>
-      <p class="muted">打卡不强制填写内容，后续可在历史里分别补写「心得 / 计划 / 高兴的事」。</p>
+      <p class="muted">打卡后可直接选择标签并写入数据库，不需要等待后续开发。</p>
     </div>
 
     <div class="card">
-      <h2>个人历史</h2>
+      <h2>个人历史记录</h2>
+      <div class="history-nav">
+        <button id="viewReflectionPageBtn" class="active">心得记录</button>
+        <button id="viewPlanPageBtn">明日计划</button>
+        <button id="viewHappyPageBtn">高兴的事</button>
+      </div>
       <div id="history" class="list"></div>
     </div>
 
@@ -121,11 +142,23 @@
   <div id="modalBackdrop" class="modal-backdrop">
     <div class="modal">
       <h3 id="modalTitle">打卡补充信息</h3>
-      <div id="reflectionRow"><textarea id="reflection" placeholder="今日反思（可选）"></textarea></div>
-      <div id="happyThingRow"><textarea id="happyThing" placeholder="今天发生的新鲜/愉快事情（可选）" style="margin-top: 8px;"></textarea></div>
-      <div id="planRow"><textarea id="plan" placeholder="明日计划（可选，不强制）" style="margin-top: 8px;"></textarea></div>
+      <div id="reflectionRow" class="tag-row">
+        <span class="field-title">心得标签（可选）</span>
+        <select id="reflectionTag"><option value="">不选标签</option><option>学习</option><option>效率</option><option>情绪</option><option>健康</option></select>
+        <textarea id="reflection" placeholder="今日反思（可选）"></textarea>
+      </div>
+      <div id="happyThingRow" class="tag-row">
+        <span class="field-title">高兴的事标签（可选）</span>
+        <select id="happyTag"><option value="">不选标签</option><option>工作</option><option>生活</option><option>朋友</option><option>运动</option></select>
+        <textarea id="happyThing" placeholder="今天发生的新鲜/愉快事情（可选）"></textarea>
+      </div>
+      <div id="planRow" class="tag-row">
+        <span class="field-title">计划标签（可选）</span>
+        <select id="planTag"><option value="">不选标签</option><option>早起</option><option>学习</option><option>健身</option><option>专注</option></select>
+        <textarea id="plan" placeholder="明日计划（可选，不强制）"></textarea>
+      </div>
       <div class="actions">
-        <button id="directBtn" class="ghost">直接打卡</button>
+        <button id="directBtn" class="ghost">仅打卡不填写</button>
         <button id="cancelBtn">取消</button>
         <button id="saveBtn" class="primary">提交</button>
       </div>
@@ -166,11 +199,16 @@
     const toastEl = document.getElementById("toast");
     const saveBtn = document.getElementById("saveBtn");
     const directBtn = document.getElementById("directBtn");
+    const reflectionTagEl = document.getElementById("reflectionTag");
+    const happyTagEl = document.getElementById("happyTag");
+    const planTagEl = document.getElementById("planTag");
     const rankModalBackdrop = document.getElementById("rankModalBackdrop");
     const rankModalTitle = document.getElementById("rankModalTitle");
     const rankModalList = document.getElementById("rankModalList");
     let toastTimer = null;
     let leaderboardCache = { nightOwls: [], earlyBirds: [] };
+    let historyItemsCache = [];
+    let activeHistoryView = "reflection";
 
     let modalMode = {
       type: "CREATE",
@@ -268,20 +306,37 @@
     }
 
     function renderHistory(items) {
+      historyItemsCache = items;
+      renderHistoryByView();
+    }
+
+    function renderHistoryByView() {
+      const items = historyItemsCache;
       historyEl.innerHTML = "";
       if (!items.length) {
         historyEl.innerHTML = '<div class="muted">暂无打卡记录</div>';
         return;
       }
-      for (const item of items) {
+      const mapped = items.filter((item) => {
+        if (activeHistoryView === "reflection") return String(item.reflection || "").trim().length > 0;
+        if (activeHistoryView === "plan") return String(item.plan || "").trim().length > 0;
+        return String(item.happy_thing || "").trim().length > 0;
+      });
+      if (!mapped.length) {
+        historyEl.innerHTML = '<div class="muted">当前分类暂无内容，点击上方按钮切换分类或先去补写。</div>';
+        return;
+      }
+      for (const item of mapped) {
         const wrap = document.createElement("div");
         wrap.className = "item";
         const reflection = item.reflection || "";
         const happyThing = item.happy_thing || "";
         const plan = item.plan || "";
-        const reflectionText = reflection ? `今日反思：${reflection}` : '<span class="placeholder">暂无内容，点击补充...</span>';
-        const happyText = happyThing ? `新鲜愉快：${happyThing}` : '<span class="placeholder">暂无内容，点击补充...</span>';
-        const planText = plan ? `明日计划：${plan}` : '<span class="placeholder">暂无内容，点击补充...</span>';
+        const detailText = activeHistoryView === "reflection"
+          ? `心得：${reflection || "暂无"}`
+          : activeHistoryView === "plan"
+            ? `明日计划：${plan || "暂无"}`
+            : `高兴的事：${happyThing || "暂无"}`;
         wrap.innerHTML = `
           <div class="item-head">
             <div>
@@ -290,9 +345,7 @@
             </div>
             <button class="edit-btn" data-id="${item.id}" title="编辑">✎</button>
           </div>
-          <div style="margin-top:8px;">${reflectionText}</div>
-          <div style="margin-top:6px;">${happyText}</div>
-          <div style="margin-top:6px;">${planText}</div>
+          <div style="margin-top:8px;">${detailText}</div>
           <div class="sub-actions">
             <button class="sub-btn edit-reflection-btn" data-id="${item.id}">补写心得</button>
             <button class="sub-btn edit-plan-btn" data-id="${item.id}">补写计划</button>
@@ -303,9 +356,6 @@
         wrap.querySelector(".edit-reflection-btn").addEventListener("click", () => openEdit(item, "reflection"));
         wrap.querySelector(".edit-plan-btn").addEventListener("click", () => openEdit(item, "plan"));
         wrap.querySelector(".edit-happy-btn").addEventListener("click", () => openEdit(item, "happyThing"));
-        wrap.querySelectorAll(".placeholder").forEach((el) => {
-          el.addEventListener("click", () => openEdit(item, "reflection"));
-        });
         historyEl.appendChild(wrap);
       }
     }
@@ -338,24 +388,50 @@
         el.innerHTML = '<div class="muted">暂无数据</div>';
         return;
       }
-      const shortText = (text) => {
-        const s = String(text || "").trim();
-        if (!s) return '<span class="rank-empty">暂无</span>';
-        return s.length > 34 ? `${s.slice(0, 34)}...` : s;
-      };
       el.innerHTML = rows.map((r, i) => `
         <div class="rank-item">
           <div class="rank-top">
             <span>#${i + 1} ${r.username}</span>
-            <span>${formatTime(r.check_time)}</span>
-          </div>
-          <div class="rank-notes">
-            <div>反思：${shortText(r.reflection)}</div>
-            <div>高兴的事：${shortText(r.happy_thing)}</div>
-            <div>明日计划：${shortText(r.plan)}</div>
+            <span class="muted">${formatTime(r.check_time)}</span>
           </div>
         </div>
       `).join("");
+    }
+
+    function inferCheckinType() {
+      const hour = new Date().getHours();
+      return hour >= 22 || hour < 5 ? "SLEEP" : "WAKE";
+    }
+
+    function formatWithTag(tag, text) {
+      const content = String(text || "").trim();
+      const label = String(tag || "").trim();
+      if (!label) return content;
+      if (!content) return `[${label}]`;
+      return `[${label}] ${content}`;
+    }
+
+    function openCreateFromCircle() {
+      const checkType = inferCheckinType();
+      modalMode = {
+        type: "CREATE",
+        checkType,
+        editId: null,
+        onlyField: null,
+        original: { reflection: "", happyThing: "", plan: "" }
+      };
+      modalTitle.textContent = checkType === "SLEEP" ? "本次自动识别为：晚睡打卡" : "本次自动识别为：早起打卡";
+      reflectionEl.value = "";
+      happyThingEl.value = "";
+      planEl.value = "";
+      reflectionTagEl.value = "";
+      happyTagEl.value = "";
+      planTagEl.value = "";
+      reflectionRowEl.style.display = "grid";
+      happyThingRowEl.style.display = "grid";
+      planRowEl.style.display = "grid";
+      directBtn.style.display = "inline-block";
+      modalBackdrop.classList.add("open");
     }
 
     function shouldWarnLateSleep() {
@@ -390,6 +466,9 @@
       reflectionEl.value = item.reflection || "";
       happyThingEl.value = item.happy_thing || "";
       planEl.value = item.plan || "";
+      reflectionTagEl.value = "";
+      happyTagEl.value = "";
+      planTagEl.value = "";
       reflectionRowEl.style.display = !onlyField || onlyField === "reflection" ? "block" : "none";
       happyThingRowEl.style.display = !onlyField || onlyField === "happyThing" ? "block" : "none";
       planRowEl.style.display = !onlyField || onlyField === "plan" ? "block" : "none";
@@ -399,45 +478,16 @@
 
     function closeModal() {
       modalBackdrop.classList.remove("open");
-      reflectionRowEl.style.display = "block";
-      happyThingRowEl.style.display = "block";
-      planRowEl.style.display = "block";
+      reflectionRowEl.style.display = "grid";
+      happyThingRowEl.style.display = "grid";
+      planRowEl.style.display = "grid";
       directBtn.style.display = "inline-block";
     }
 
-    async function createCheckin(type) {
-      try {
-        if (type === "SLEEP" && shouldWarnLateSleep()) {
-          alert("22:00 后仍在活动，注意休息哦。");
-        }
-        setMsg("打卡中...", "ok");
-        const res = await fetch("/api/checkins", {
-          method: "POST",
-          headers: { "content-type": "application/json", ...authHeaders() },
-          body: JSON.stringify({
-            type,
-            reflection: "",
-            happyThing: "",
-            plan: "",
-            checkTime: new Date().toISOString()
-          })
-        });
-        const data = await parseJsonSafe(res);
-        if (!res.ok) {
-          setMsg(humanizeError(data.error || "打卡失败"), "err");
-          return;
-        }
-        await Promise.all([fetchHistory(), fetchLeaderboard()]);
-        setMsg("打卡成功，可稍后补写三项内容", "ok");
-      } catch (error) {
-        setMsg(`打卡失败：${humanizeError(String(error.message || error))}`, "err");
-      }
-    }
-
     async function submitModal(forceEmpty = false) {
-      const reflection = forceEmpty ? "" : reflectionEl.value.trim();
-      const happyThing = forceEmpty ? "" : happyThingEl.value.trim();
-      const plan = forceEmpty ? "" : planEl.value.trim();
+      const reflection = forceEmpty ? "" : formatWithTag(reflectionTagEl.value, reflectionEl.value);
+      const happyThing = forceEmpty ? "" : formatWithTag(happyTagEl.value, happyThingEl.value);
+      const plan = forceEmpty ? "" : formatWithTag(planTagEl.value, planEl.value);
       try {
         setCheckinLoading(true, forceEmpty ? "direct" : "save");
         let res;
@@ -504,13 +554,18 @@
               <span class="tag">#${i + 1} ${r.username}</span>
               <span class="muted">${formatTime(r.check_time)}</span>
             </div>
-            <div style="margin-top:8px;">反思：${r.reflection || "暂无"}</div>
-            <div style="margin-top:6px;">高兴的事：${r.happy_thing || "暂无"}</div>
-            <div style="margin-top:6px;">明日计划：${r.plan || "暂无"}</div>
           </div>
         `).join("");
       }
       rankModalBackdrop.classList.add("open");
+    }
+
+    function setHistoryView(view) {
+      activeHistoryView = view;
+      document.getElementById("viewReflectionPageBtn").classList.toggle("active", view === "reflection");
+      document.getElementById("viewPlanPageBtn").classList.toggle("active", view === "plan");
+      document.getElementById("viewHappyPageBtn").classList.toggle("active", view === "happyThing");
+      renderHistoryByView();
     }
 
     async function auth(path) {
@@ -569,11 +624,13 @@
       setMsg("你已退出登录", "ok");
     }
 
-    document.getElementById("sleepBtn").addEventListener("click", () => createCheckin("SLEEP"));
-    document.getElementById("wakeBtn").addEventListener("click", () => createCheckin("WAKE"));
+    document.getElementById("checkinCircleBtn").addEventListener("click", openCreateFromCircle);
     document.getElementById("cancelBtn").addEventListener("click", closeModal);
     document.getElementById("saveBtn").addEventListener("click", () => submitModal(false));
     document.getElementById("directBtn").addEventListener("click", () => submitModal(true));
+    document.getElementById("viewReflectionPageBtn").addEventListener("click", () => setHistoryView("reflection"));
+    document.getElementById("viewPlanPageBtn").addEventListener("click", () => setHistoryView("plan"));
+    document.getElementById("viewHappyPageBtn").addEventListener("click", () => setHistoryView("happyThing"));
     document.getElementById("viewNightRankBtn").addEventListener("click", () => openRankModal("night"));
     document.getElementById("viewEarlyRankBtn").addEventListener("click", () => openRankModal("early"));
     document.getElementById("closeRankModalBtn").addEventListener("click", () => rankModalBackdrop.classList.remove("open"));
