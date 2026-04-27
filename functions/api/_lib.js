@@ -1,4 +1,6 @@
 export const CHECKINS_TABLE = "checkins_v2";
+export const USERS_TABLE = "users_v2";
+export const SESSIONS_TABLE = "sessions_v2";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function json(data, status = 200) {
@@ -32,17 +34,9 @@ export function getSessionExpiresAt() {
   return new Date(Date.now() + SESSION_TTL_MS).toISOString();
 }
 
-async function safeRun(env, sql) {
-  try {
-    await env.DB.prepare(sql).run();
-  } catch (_e) {
-    // Best-effort schema reconciliation for legacy databases.
-  }
-}
-
 export async function ensureAuthTables(env) {
   await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS users (
+    `CREATE TABLE IF NOT EXISTS ${USERS_TABLE} (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
@@ -52,26 +46,19 @@ export async function ensureAuthTables(env) {
   ).run();
 
   await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS sessions (
+    `CREATE TABLE IF NOT EXISTS ${SESSIONS_TABLE} (
       token TEXT PRIMARY KEY,
       user_id INTEGER NOT NULL,
       expires_at TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (user_id) REFERENCES users(id)
+      FOREIGN KEY (user_id) REFERENCES ${USERS_TABLE}(id)
     )`
   ).run();
 
   await env.DB.prepare(
-    "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id, expires_at DESC)"
+    `CREATE INDEX IF NOT EXISTS idx_${SESSIONS_TABLE}_user
+     ON ${SESSIONS_TABLE}(user_id, expires_at DESC)`
   ).run();
-
-  // Reconcile legacy schemas where users/sessions exist with missing columns.
-  await safeRun(env, "ALTER TABLE users ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''");
-  await safeRun(env, "ALTER TABLE users ADD COLUMN salt TEXT NOT NULL DEFAULT ''");
-  await safeRun(env, "ALTER TABLE users ADD COLUMN created_at TEXT NOT NULL DEFAULT (datetime('now'))");
-  await safeRun(env, "ALTER TABLE sessions ADD COLUMN user_id INTEGER NOT NULL DEFAULT 0");
-  await safeRun(env, "ALTER TABLE sessions ADD COLUMN expires_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z'");
-  await safeRun(env, "ALTER TABLE sessions ADD COLUMN created_at TEXT NOT NULL DEFAULT (datetime('now'))");
 }
 
 export async function ensureCheckinsTable(env) {
@@ -87,7 +74,7 @@ export async function ensureCheckinsTable(env) {
       happy_thing TEXT NOT NULL DEFAULT '',
       plan TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (user_id) REFERENCES users(id)
+      FOREIGN KEY (user_id) REFERENCES ${USERS_TABLE}(id)
     )`
   ).run();
 
@@ -109,8 +96,8 @@ export async function getAuthUser(request, env) {
 
   const user = await env.DB.prepare(
     `SELECT u.id, u.username
-     FROM sessions s
-     JOIN users u ON u.id = s.user_id
+     FROM ${SESSIONS_TABLE} s
+     JOIN ${USERS_TABLE} u ON u.id = s.user_id
      WHERE s.token = ? AND s.expires_at > ?
      LIMIT 1`
   ).bind(token, new Date().toISOString()).first();

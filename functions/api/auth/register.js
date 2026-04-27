@@ -4,7 +4,9 @@ import {
   generateToken,
   getSessionExpiresAt,
   json,
-  sha256
+  SESSIONS_TABLE,
+  sha256,
+  USERS_TABLE
 } from "../_lib.js";
 
 function randomHex(bytes = 12) {
@@ -26,21 +28,21 @@ export async function onRequestPost(context) {
     if (password.length < 6) return json({ error: "password must be at least 6 chars" }, 400);
 
     const exists = await env.DB.prepare(
-      "SELECT id FROM users WHERE username = ? LIMIT 1"
+      `SELECT id FROM ${USERS_TABLE} WHERE username = ? LIMIT 1`
     ).bind(username).first();
     if (exists) return json({ error: "username already exists" }, 409);
 
     const salt = randomHex(12);
     const passwordHash = await sha256(`${salt}:${password}`);
     const userInsert = await env.DB.prepare(
-      "INSERT INTO users (username, password_hash, salt) VALUES (?, ?, ?)"
+      `INSERT INTO ${USERS_TABLE} (username, password_hash, salt) VALUES (?, ?, ?)`
     ).bind(username, passwordHash, salt).run();
     const userId = userInsert.meta.last_row_id;
 
     const token = generateToken();
     const expiresAt = getSessionExpiresAt();
     await env.DB.prepare(
-      "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)"
+      `INSERT INTO ${SESSIONS_TABLE} (token, user_id, expires_at) VALUES (?, ?, ?)`
     ).bind(token, userId, expiresAt).run();
 
     return json({ token, username }, 201);

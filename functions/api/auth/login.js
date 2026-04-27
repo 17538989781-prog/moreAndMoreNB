@@ -4,7 +4,9 @@ import {
   generateToken,
   getSessionExpiresAt,
   json,
-  sha256
+  SESSIONS_TABLE,
+  sha256,
+  USERS_TABLE
 } from "../_lib.js";
 
 export async function onRequestPost(context) {
@@ -19,7 +21,7 @@ export async function onRequestPost(context) {
     if (!username || !password) return json({ error: "username and password are required" }, 400);
 
     const user = await env.DB.prepare(
-      "SELECT id, username, password_hash, salt FROM users WHERE username = ? LIMIT 1"
+      `SELECT id, username, password_hash, salt FROM ${USERS_TABLE} WHERE username = ? LIMIT 1`
     ).bind(username).first();
     if (!user) return json({ error: "invalid credentials" }, 401);
 
@@ -29,7 +31,7 @@ export async function onRequestPost(context) {
     const token = generateToken();
     const expiresAt = getSessionExpiresAt();
     await env.DB.prepare(
-      "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)"
+      `INSERT INTO ${SESSIONS_TABLE} (token, user_id, expires_at) VALUES (?, ?, ?)`
     ).bind(token, user.id, expiresAt).run();
 
     return json({ token, username: user.username });
