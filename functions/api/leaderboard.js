@@ -7,7 +7,7 @@ import {
 } from "./_lib.js";
 
 function getBeijingDateParts(date = new Date()) {
-  const utcMs = date.getTime() + date.getTimezoneOffset() * 60 * 1000;
+  const utcMs = date.getTime();
   const bj = new Date(utcMs + 8 * 60 * 60 * 1000);
   return {
     year: bj.getUTCFullYear(),

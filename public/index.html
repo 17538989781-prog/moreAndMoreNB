@@ -359,7 +359,7 @@
 
     function formatTime(isoString) {
       const d = new Date(isoString);
-      const utcMs = d.getTime() + d.getTimezoneOffset() * 60 * 1000;
+      const utcMs = d.getTime();
       const bj = new Date(utcMs + 8 * 60 * 60 * 1000);
       const yyyy = bj.getUTCFullYear();
       const mm = String(bj.getUTCMonth() + 1).padStart(2, "0");
@@ -372,7 +372,7 @@
 
     function getBeijingTimeParts() {
       const now = new Date();
-      const utcMs = now.getTime() + now.getTimezoneOffset() * 60 * 1000;
+      const utcMs = now.getTime();
       const bj = new Date(utcMs + 8 * 60 * 60 * 1000);
       const hh = String(bj.getUTCHours()).padStart(2, "0");
       const mm = String(bj.getUTCMinutes()).padStart(2, "0");
@@ -389,7 +389,7 @@
 
     function getBeijingPartsFromIso(isoString) {
       const d = new Date(isoString);
-      const utcMs = d.getTime() + d.getTimezoneOffset() * 60 * 1000;
+      const utcMs = d.getTime();
       const bj = new Date(utcMs + 8 * 60 * 60 * 1000);
       return {
         year: bj.getUTCFullYear(),
@@ -552,7 +552,7 @@
           const planText = lastNight.plan || "暂无";
           const reflectionText = lastNight.reflection || "暂无";
           const happyText = lastNight.happy_thing || "暂无";
-          alert(`昨晚回顾\n计划：${planText}\n心得：${reflectionText}\n美好的事：${happyText}`);
+          alert(`昨晚记录回顾\n昨晚写下的计划：${planText}\n昨晚心得：${reflectionText}\n昨晚美好的事：${happyText}`);
         } else {
           alert("昨晚暂无记录，今天也要继续加油！");
         }
