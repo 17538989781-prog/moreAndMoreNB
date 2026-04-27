@@ -32,11 +32,28 @@
       width: 132px;
       height: 132px;
       border-radius: 999px;
+      position: relative;
       display: grid;
       place-items: center;
-      background: conic-gradient(#60a5fa, #818cf8, #60a5fa);
       box-shadow: 0 10px 24px rgba(37, 99, 235, .24);
-      animation: ringGlow 2.6s ease-in-out infinite, spinRing 8s linear infinite;
+      animation: ringGlow 2.6s ease-in-out infinite;
+    }
+    .checkin-ring::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background: conic-gradient(#60a5fa, #818cf8, #60a5fa);
+      animation: spinRing 8s linear infinite;
+      z-index: 0;
+    }
+    .checkin-ring::after {
+      content: "";
+      position: absolute;
+      inset: 8px;
+      border-radius: 999px;
+      background: #fff;
+      z-index: 1;
     }
     @keyframes ringGlow {
       0%, 100% { box-shadow: 0 10px 24px rgba(37, 99, 235, .20); }
@@ -60,6 +77,8 @@
       place-items: center;
       text-align: center;
       line-height: 1.2;
+      position: relative;
+      z-index: 2;
     }
     .checkin-main { font-size: 18px; font-weight: 700; }
     .checkin-circle:active { transform: scale(.98); }
@@ -347,10 +366,57 @@
       const now = new Date();
       const utcMs = now.getTime() + now.getTimezoneOffset() * 60 * 1000;
       const bj = new Date(utcMs + 8 * 60 * 60 * 1000);
+      const hh = String(bj.getUTCHours()).padStart(2, "0");
+      const mm = String(bj.getUTCMinutes()).padStart(2, "0");
+      const ss = String(bj.getUTCSeconds()).padStart(2, "0");
       return {
         hour: bj.getUTCHours(),
+        minute: bj.getUTCMinutes(),
+        second: bj.getUTCSeconds(),
         dateKey: `${bj.getUTCFullYear()}-${String(bj.getUTCMonth() + 1).padStart(2, "0")}-${String(bj.getUTCDate()).padStart(2, "0")}`,
+        display: `${hh}:${mm}:${ss}`,
+        timestampMs: bj.getTime(),
       };
+    }
+
+    function getBeijingPartsFromIso(isoString) {
+      const d = new Date(isoString);
+      const utcMs = d.getTime() + d.getTimezoneOffset() * 60 * 1000;
+      const bj = new Date(utcMs + 8 * 60 * 60 * 1000);
+      return {
+        year: bj.getUTCFullYear(),
+        month: bj.getUTCMonth() + 1,
+        day: bj.getUTCDate(),
+        hour: bj.getUTCHours(),
+      };
+    }
+
+    function findYesterdayNightCheckin() {
+      const nowBj = getBeijingTimeParts();
+      const nowBjDate = new Date(nowBj.timestampMs);
+      const todayStartBj = new Date(Date.UTC(
+        nowBjDate.getUTCFullYear(),
+        nowBjDate.getUTCMonth(),
+        nowBjDate.getUTCDate(),
+        0, 0, 0, 0
+      ));
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      const yStart = new Date(todayStartBj.getTime() - oneDayMs);
+      const yDay = yStart.getUTCDate();
+      const yMonth = yStart.getUTCMonth() + 1;
+      const yYear = yStart.getUTCFullYear();
+      const tDay = todayStartBj.getUTCDate();
+      const tMonth = todayStartBj.getUTCMonth() + 1;
+      const tYear = todayStartBj.getUTCFullYear();
+
+      const candidates = historyItemsCache.filter((item) => item.type === "SLEEP");
+      for (const item of candidates) {
+        const p = getBeijingPartsFromIso(item.check_time);
+        const inYesterdayEvening = p.year === yYear && p.month === yMonth && p.day === yDay && p.hour >= 18;
+        const inTodayBefore4 = p.year === tYear && p.month === tMonth && p.day === tDay && p.hour < 4;
+        if (inYesterdayEvening || inTodayBefore4) return item;
+      }
+      return null;
     }
 
     async function fetchHistory() {
@@ -468,6 +534,21 @@
 
     function openCreateFromCircle() {
       const checkType = inferCheckinType();
+      const bjNow = getBeijingTimeParts();
+      if (checkType === "SLEEP") {
+        alert(`北京时间 ${bjNow.display}\n你正在进行晚间打卡。\n三项内容均为选填，不强制。`);
+      } else {
+        alert(`北京时间 ${bjNow.display}\n早上好！早起加油，开启高效一天！`);
+        const lastNight = findYesterdayNightCheckin();
+        if (lastNight) {
+          const planText = lastNight.plan || "暂无";
+          const reflectionText = lastNight.reflection || "暂无";
+          const happyText = lastNight.happy_thing || "暂无";
+          alert(`昨晚回顾\n计划：${planText}\n心得：${reflectionText}\n美好的事：${happyText}`);
+        } else {
+          alert("昨晚暂无记录，今天也要继续加油！");
+        }
+      }
       modalMode = {
         type: "CREATE",
         checkType,
