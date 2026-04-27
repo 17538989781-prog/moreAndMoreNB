@@ -1,6 +1,7 @@
 export const CHECKINS_TABLE = "checkins_v2";
 export const USERS_TABLE = "users_v2";
 export const SESSIONS_TABLE = "sessions_v2";
+export const COMMENTS_TABLE = "comments_v2";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function json(data, status = 200) {
@@ -101,6 +102,25 @@ export async function ensureCheckinsTable(env) {
   await env.DB.prepare(
     `CREATE INDEX IF NOT EXISTS idx_${CHECKINS_TABLE}_type_time
      ON ${CHECKINS_TABLE}(type, check_time)`
+  ).run();
+}
+
+export async function ensureCommentsTable(env) {
+  await ensureAuthTables(env);
+
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS ${COMMENTS_TABLE} (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES ${USERS_TABLE}(id)
+    )`
+  ).run();
+
+  await env.DB.prepare(
+    `CREATE INDEX IF NOT EXISTS idx_${COMMENTS_TABLE}_created
+     ON ${COMMENTS_TABLE}(created_at DESC, id DESC)`
   ).run();
 }
 

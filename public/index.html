@@ -70,6 +70,11 @@
     .rank-top { display: flex; justify-content: space-between; gap: 10px; }
     .tag-row { display: grid; gap: 8px; margin-top: 8px; }
     .field-title { color: #4b5563; font-size: 13px; }
+    .field-actions { display: flex; justify-content: flex-end; }
+    .mini-save { background: #eef2ff; color: #1d4ed8; padding: 6px 10px; border-radius: 8px; font-size: 12px; }
+    .comments-panel { max-height: 260px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px; }
+    .comment-item { border-bottom: 1px dashed #e5e7eb; padding: 8px 0; }
+    .comment-item:last-child { border-bottom: 0; }
     .modal-backdrop { position: fixed; inset: 0; display: none; place-items: center; background: rgba(17, 24, 39, .45); z-index: 20; }
     .modal { width: min(700px, 92vw); background: #fff; border-radius: 14px; padding: 16px; }
     .modal-backdrop.open { display: grid; }
@@ -165,6 +170,16 @@
         </div>
       </div>
     </div>
+
+    <div class="card">
+      <h2>公共评论区</h2>
+      <div class="row">
+        <input id="commentInput" maxlength="300" placeholder="发布你的发言（所有人可见，最多300字）">
+        <button id="commentSendBtn" class="primary">发布</button>
+      </div>
+      <p class="muted">按最新发布时间排序显示，可滚动查看历史内容。</p>
+      <div id="commentsList" class="comments-panel"></div>
+    </div>
   </div>
 
   <div id="modalBackdrop" class="modal-backdrop">
@@ -174,16 +189,19 @@
         <span class="field-title">心得标签（可选）</span>
         <select id="reflectionTag"><option value="">不选标签</option><option>学习</option><option>效率</option><option>情绪</option><option>健康</option></select>
         <textarea id="reflection" placeholder="今日反思（可选）"></textarea>
+        <div class="field-actions"><button id="saveReflectionOnlyBtn" class="mini-save">添加心得</button></div>
       </div>
       <div id="happyThingRow" class="tag-row">
         <span class="field-title">高兴的事标签（可选）</span>
         <select id="happyTag"><option value="">不选标签</option><option>工作</option><option>生活</option><option>朋友</option><option>运动</option></select>
         <textarea id="happyThing" placeholder="今天发生的新鲜/愉快事情（可选）"></textarea>
+        <div class="field-actions"><button id="saveHappyOnlyBtn" class="mini-save">添加高兴的事</button></div>
       </div>
       <div id="planRow" class="tag-row">
         <span class="field-title">计划标签（可选）</span>
         <select id="planTag"><option value="">不选标签</option><option>早起</option><option>学习</option><option>健身</option><option>专注</option></select>
         <textarea id="plan" placeholder="明日计划（可选，不强制）"></textarea>
+        <div class="field-actions"><button id="savePlanOnlyBtn" class="mini-save">添加明日计划</button></div>
       </div>
       <div class="actions">
         <button id="directBtn" class="ghost">仅打卡不填写</button>
@@ -235,6 +253,9 @@
     const rankModalBackdrop = document.getElementById("rankModalBackdrop");
     const rankModalTitle = document.getElementById("rankModalTitle");
     const rankModalList = document.getElementById("rankModalList");
+    const commentInputEl = document.getElementById("commentInput");
+    const commentSendBtn = document.getElementById("commentSendBtn");
+    const commentsListEl = document.getElementById("commentsList");
     let toastTimer = null;
     let leaderboardCache = { nightOwls: [], earlyBirds: [] };
     let historyItemsCache = [];
@@ -318,6 +339,23 @@
     function formatTime(isoString) {
       const d = new Date(isoString);
       return d.toLocaleString("zh-CN", { hour12: false });
+    }
+
+    function getBeijingTimeParts() {
+      const now = new Date();
+      const utcMs = now.getTime() + now.getTimezoneOffset() * 60 * 1000;
+      const bj = new Date(utcMs + 8 * 60 * 60 * 1000);
+      const hh = String(bj.getUTCHours()).padStart(2, "0");
+      const mm = String(bj.getUTCMinutes()).padStart(2, "0");
+      const ss = String(bj.getUTCSeconds()).padStart(2, "0");
+      return {
+        hour: Number(hh),
+        minute: Number(mm),
+        second: Number(ss),
+        millis: now.getMilliseconds(),
+        dateKey: `${bj.getUTCFullYear()}-${String(bj.getUTCMonth() + 1).padStart(2, "0")}-${String(bj.getUTCDate()).padStart(2, "0")}`,
+        text: `${hh}:${mm}:${ss}`
+      };
     }
 
     async function fetchHistory() {
@@ -428,35 +466,15 @@
       `).join("");
     }
 
-    function getBeijingTimeParts() {
-      const now = new Date();
-      const formatter = new Intl.DateTimeFormat("zh-CN", {
-        timeZone: "Asia/Shanghai",
-        hour12: false,
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit"
-      });
-      const parts = formatter.formatToParts(now);
-      const pick = (type) => parts.find((p) => p.type === type)?.value || "00";
-      return {
-        hour: Number(pick("hour")),
-        minute: Number(pick("minute")),
-        second: Number(pick("second")),
-        text: `${pick("hour")}:${pick("minute")}:${pick("second")}`
-      };
-    }
-
     function inferCheckinType() {
       const hour = getBeijingTimeParts().hour;
       return hour >= 22 || hour < 5 ? "SLEEP" : "WAKE";
     }
 
     function updateCheckinClock() {
-      const now = new Date();
       const bj = getBeijingTimeParts();
       checkinTimeTextEl.textContent = bj.text;
-      const secProgress = ((bj.second + now.getMilliseconds() / 1000) / 60) * 360;
+      const secProgress = ((bj.second + bj.millis / 1000) / 60) * 360;
       checkinRingEl.style.setProperty("--progress", `${secProgress.toFixed(2)}deg`);
     }
 
@@ -485,10 +503,10 @@
     }
 
     function shouldWarnLateSleep() {
-      const now = new Date();
-      const hour = now.getHours();
+      const bj = getBeijingTimeParts();
+      const hour = bj.hour;
       if (hour < 22) return false;
-      const key = `sleep_warned_${now.toISOString().slice(0, 10)}`;
+      const key = `sleep_warned_${bj.dateKey}`;
       if (localStorage.getItem(key) === "1") return false;
       localStorage.setItem(key, "1");
       return true;
@@ -595,12 +613,22 @@
           return;
         }
         closeModal();
-        await Promise.all([fetchHistory(), fetchLeaderboard()]);
+        await Promise.all([fetchHistory(), fetchLeaderboard(), fetchComments()]);
         setMsg("保存成功", "ok");
       } catch (error) {
         setMsg(`保存失败：${humanizeError(String(error.message || error))}`, "err");
       } finally {
         setCheckinLoading(false);
+      }
+    }
+
+    async function submitOnlyField(field) {
+      const oldField = modalMode.onlyField || null;
+      modalMode.onlyField = field;
+      try {
+        await submitModal(false);
+      } finally {
+        modalMode.onlyField = oldField;
       }
     }
 
@@ -628,6 +656,66 @@
       document.getElementById("viewPlanPageBtn").classList.toggle("active", view === "plan");
       document.getElementById("viewHappyPageBtn").classList.toggle("active", view === "happyThing");
       renderHistoryByView();
+    }
+
+    function renderComments(items) {
+      if (!items.length) {
+        commentsListEl.innerHTML = '<div class="muted">暂无发言，快来发布第一条吧。</div>';
+        return;
+      }
+      commentsListEl.innerHTML = items.map((item) => `
+        <div class="comment-item">
+          <div class="item-head">
+            <span class="tag">${item.username}</span>
+            <span class="muted">${formatTime(item.created_at)}</span>
+          </div>
+          <div style="margin-top:6px; white-space:pre-wrap;">${String(item.content || "")}</div>
+        </div>
+      `).join("");
+    }
+
+    async function fetchComments() {
+      try {
+        const res = await fetch("/api/comments");
+        const data = await parseJsonSafe(res);
+        if (!res.ok) {
+          setMsg(data.error || "加载评论失败", "err");
+          return;
+        }
+        renderComments(data.items || []);
+      } catch (error) {
+        setMsg(`加载评论失败：${String(error.message || error)}`, "err");
+      }
+    }
+
+    async function publishComment() {
+      const content = String(commentInputEl.value || "").trim();
+      if (!content) {
+        setMsg("请先输入发言内容", "err");
+        return;
+      }
+      try {
+        commentSendBtn.disabled = true;
+        commentSendBtn.textContent = "发布中...";
+        const res = await fetch("/api/comments", {
+          method: "POST",
+          headers: { "content-type": "application/json", ...authHeaders() },
+          body: JSON.stringify({ content })
+        });
+        const data = await parseJsonSafe(res);
+        if (!res.ok) {
+          setMsg(humanizeError(data.error || "发布失败"), "err");
+          return;
+        }
+        commentInputEl.value = "";
+        await fetchComments();
+        setMsg("发言已发布", "ok");
+      } catch (error) {
+        setMsg(`发布失败：${String(error.message || error)}`, "err");
+      } finally {
+        commentSendBtn.disabled = false;
+        commentSendBtn.textContent = "发布";
+      }
     }
 
     async function auth(path) {
@@ -690,6 +778,9 @@
     document.getElementById("cancelBtn").addEventListener("click", closeModal);
     document.getElementById("saveBtn").addEventListener("click", () => submitModal(false));
     document.getElementById("directBtn").addEventListener("click", () => submitModal(true));
+    document.getElementById("saveReflectionOnlyBtn").addEventListener("click", () => submitOnlyField("reflection"));
+    document.getElementById("saveHappyOnlyBtn").addEventListener("click", () => submitOnlyField("happyThing"));
+    document.getElementById("savePlanOnlyBtn").addEventListener("click", () => submitOnlyField("plan"));
     document.getElementById("viewReflectionPageBtn").addEventListener("click", () => setHistoryView("reflection"));
     document.getElementById("viewPlanPageBtn").addEventListener("click", () => setHistoryView("plan"));
     document.getElementById("viewHappyPageBtn").addEventListener("click", () => setHistoryView("happyThing"));
@@ -699,6 +790,7 @@
     document.getElementById("registerBtn").addEventListener("click", () => auth("register"));
     document.getElementById("loginBtn").addEventListener("click", () => auth("login"));
     document.getElementById("logoutBtn").addEventListener("click", logout);
+    commentSendBtn.addEventListener("click", publishComment);
     authPasswordEl.addEventListener("keydown", (e) => {
       if (e.key === "Enter") auth("login");
     });
@@ -713,10 +805,10 @@
       currentUser = "已登录用户";
       welcomeEl.textContent = `你好，${currentUser}`;
       switchView(true);
-      Promise.all([fetchHistory(), fetchLeaderboard()]);
+      Promise.all([fetchHistory(), fetchLeaderboard(), fetchComments()]);
     } else {
       switchView(false);
-      fetchLeaderboard();
+      Promise.all([fetchLeaderboard(), fetchComments()]);
     }
   </script>
 </body>

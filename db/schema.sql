@@ -37,3 +37,14 @@ CREATE INDEX IF NOT EXISTS idx_checkins_v2_user_created
 
 CREATE INDEX IF NOT EXISTS idx_checkins_v2_type_time
   ON checkins_v2(type, check_time);
+
+CREATE TABLE IF NOT EXISTS comments_v2 (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  content TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users_v2(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_comments_v2_created
+  ON comments_v2(created_at DESC, id DESC);
