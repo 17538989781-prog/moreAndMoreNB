@@ -29,19 +29,22 @@
     .leader-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .checkin-wrap { display: grid; place-items: center; gap: 10px; margin-top: 8px; }
     .checkin-ring {
-      --progress: 0deg;
       width: 132px;
       height: 132px;
       border-radius: 999px;
       display: grid;
       place-items: center;
-      background: conic-gradient(#60a5fa var(--progress), #dbeafe var(--progress));
+      background: conic-gradient(#60a5fa, #818cf8, #60a5fa);
       box-shadow: 0 10px 24px rgba(37, 99, 235, .24);
-      animation: ringGlow 2.6s ease-in-out infinite;
+      animation: ringGlow 2.6s ease-in-out infinite, spinRing 8s linear infinite;
     }
     @keyframes ringGlow {
       0%, 100% { box-shadow: 0 10px 24px rgba(37, 99, 235, .20); }
       50% { box-shadow: 0 14px 28px rgba(59, 130, 246, .36); }
+    }
+    @keyframes spinRing {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
     }
     .checkin-circle {
       width: 118px;
@@ -59,7 +62,6 @@
       line-height: 1.2;
     }
     .checkin-main { font-size: 18px; font-weight: 700; }
-    .checkin-time { font-size: 12px; opacity: .96; }
     .checkin-circle:active { transform: scale(.98); }
     .history-nav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
     .history-nav button { background: #f3f4f6; color: #374151; }
@@ -133,13 +135,14 @@
         <div id="checkinRing" class="checkin-ring">
           <button id="checkinCircleBtn" class="checkin-circle">
             <span class="checkin-main">打卡</span>
-            <span id="checkinTimeText" class="checkin-time">--:--:--</span>
           </button>
         </div>
-        <span class="muted">北京时间</span>
         <span class="muted">单击后自动判断为「晚睡/早起」，并可立即补写三项内容</span>
       </div>
       <p class="muted">打卡后可直接选择标签并写入数据库，不需要等待后续开发。</p>
+      <div class="sub-actions" style="justify-content:center;">
+        <button id="supplementLatestBtn" class="sub-btn">签到后补填三项</button>
+      </div>
     </div>
 
     <div class="card">
@@ -249,7 +252,6 @@
     const happyTagEl = document.getElementById("happyTag");
     const planTagEl = document.getElementById("planTag");
     const checkinRingEl = document.getElementById("checkinRing");
-    const checkinTimeTextEl = document.getElementById("checkinTimeText");
     const rankModalBackdrop = document.getElementById("rankModalBackdrop");
     const rankModalTitle = document.getElementById("rankModalTitle");
     const rankModalList = document.getElementById("rankModalList");
@@ -345,16 +347,9 @@
       const now = new Date();
       const utcMs = now.getTime() + now.getTimezoneOffset() * 60 * 1000;
       const bj = new Date(utcMs + 8 * 60 * 60 * 1000);
-      const hh = String(bj.getUTCHours()).padStart(2, "0");
-      const mm = String(bj.getUTCMinutes()).padStart(2, "0");
-      const ss = String(bj.getUTCSeconds()).padStart(2, "0");
       return {
-        hour: Number(hh),
-        minute: Number(mm),
-        second: Number(ss),
-        millis: now.getMilliseconds(),
+        hour: bj.getUTCHours(),
         dateKey: `${bj.getUTCFullYear()}-${String(bj.getUTCMonth() + 1).padStart(2, "0")}-${String(bj.getUTCDate()).padStart(2, "0")}`,
-        text: `${hh}:${mm}:${ss}`
       };
     }
 
@@ -471,13 +466,6 @@
       return hour >= 22 || hour < 5 ? "SLEEP" : "WAKE";
     }
 
-    function updateCheckinClock() {
-      const bj = getBeijingTimeParts();
-      checkinTimeTextEl.textContent = bj.text;
-      const secProgress = ((bj.second + bj.millis / 1000) / 60) * 360;
-      checkinRingEl.style.setProperty("--progress", `${secProgress.toFixed(2)}deg`);
-    }
-
     function openCreateFromCircle() {
       const checkType = inferCheckinType();
       modalMode = {
@@ -487,16 +475,22 @@
         onlyField: null,
         original: { reflection: "", reflectionTag: "", happyThing: "", happyTag: "", plan: "", planTag: "" }
       };
-      modalTitle.textContent = checkType === "SLEEP" ? "本次自动识别为：晚睡打卡" : "本次自动识别为：早起打卡";
+      modalTitle.textContent = checkType === "SLEEP" ? "晚间打卡：填写今晚记录" : "早起打卡：填写明日计划";
       reflectionEl.value = "";
       happyThingEl.value = "";
       planEl.value = "";
       reflectionTagEl.value = "";
       happyTagEl.value = "";
       planTagEl.value = "";
-      reflectionRowEl.style.display = "grid";
-      happyThingRowEl.style.display = "grid";
-      planRowEl.style.display = "grid";
+      if (checkType === "SLEEP") {
+        reflectionRowEl.style.display = "grid";
+        happyThingRowEl.style.display = "grid";
+        planRowEl.style.display = "grid";
+      } else {
+        reflectionRowEl.style.display = "none";
+        happyThingRowEl.style.display = "none";
+        planRowEl.style.display = "grid";
+      }
       directBtn.style.display = "inline-block";
       modalBackdrop.classList.add("open");
       setMsg("已打开打卡填写弹窗", "ok");
@@ -560,12 +554,15 @@
       const reflectionTag = forceEmpty ? "" : String(reflectionTagEl.value || "").trim();
       const happyThing = forceEmpty ? "" : String(happyThingEl.value || "").trim();
       const happyTag = forceEmpty ? "" : String(happyTagEl.value || "").trim();
-      const plan = forceEmpty ? "" : String(planEl.value || "").trim();
+      let plan = forceEmpty ? "" : String(planEl.value || "").trim();
       const planTag = forceEmpty ? "" : String(planTagEl.value || "").trim();
       try {
         setCheckinLoading(true, forceEmpty ? "direct" : "save");
         let res;
         if (modalMode.type === "CREATE") {
+          if (modalMode.checkType === "WAKE" && !plan) {
+            plan = "早起加油，开启高效一天！";
+          }
           res = await fetch("/api/checkins", {
             method: "POST",
             headers: { "content-type": "application/json", ...authHeaders() },
@@ -620,6 +617,18 @@
       } finally {
         setCheckinLoading(false);
       }
+    }
+
+    function openLatestSupplement() {
+      if (!historyItemsCache.length) {
+        setMsg("暂无可补填的打卡记录，请先签到", "err");
+        return;
+      }
+      openEdit(historyItemsCache[0], null);
+      reflectionRowEl.style.display = "grid";
+      happyThingRowEl.style.display = "grid";
+      planRowEl.style.display = "grid";
+      modalTitle.textContent = "签到后补填：三项内容";
     }
 
     async function submitOnlyField(field) {
@@ -798,9 +807,6 @@
       if (e.key === "Enter") auth("login");
     });
 
-    updateCheckinClock();
-    setInterval(updateCheckinClock, 200);
-
     if (getToken()) {
       currentUser = "已登录用户";
       welcomeEl.textContent = `你好，${currentUser}`;
@@ -810,6 +816,7 @@
       switchView(false);
       Promise.all([fetchLeaderboard(), fetchComments()]);
     }
+    document.getElementById("supplementLatestBtn").addEventListener("click", openLatestSupplement);
   </script>
 </body>
 </html>
