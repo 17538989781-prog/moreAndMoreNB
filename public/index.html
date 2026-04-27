@@ -28,6 +28,21 @@
     .edit-btn { background: transparent; color: #4b5563; padding: 0; font-size: 18px; }
     .leader-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .checkin-wrap { display: grid; place-items: center; gap: 10px; margin-top: 8px; }
+    .checkin-ring {
+      --progress: 0deg;
+      width: 132px;
+      height: 132px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: conic-gradient(#60a5fa var(--progress), #dbeafe var(--progress));
+      box-shadow: 0 10px 24px rgba(37, 99, 235, .24);
+      animation: ringGlow 2.6s ease-in-out infinite;
+    }
+    @keyframes ringGlow {
+      0%, 100% { box-shadow: 0 10px 24px rgba(37, 99, 235, .20); }
+      50% { box-shadow: 0 14px 28px rgba(59, 130, 246, .36); }
+    }
     .checkin-circle {
       width: 118px;
       height: 118px;
@@ -38,7 +53,13 @@
       box-shadow: 0 12px 24px rgba(37, 99, 235, .28);
       font-weight: 700;
       font-size: 18px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      line-height: 1.2;
     }
+    .checkin-main { font-size: 18px; font-weight: 700; }
+    .checkin-time { font-size: 12px; opacity: .96; }
     .checkin-circle:active { transform: scale(.98); }
     .history-nav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
     .history-nav button { background: #f3f4f6; color: #374151; }
@@ -51,6 +72,7 @@
     .field-title { color: #4b5563; font-size: 13px; }
     .modal-backdrop { position: fixed; inset: 0; display: none; place-items: center; background: rgba(17, 24, 39, .45); z-index: 20; }
     .modal { width: min(700px, 92vw); background: #fff; border-radius: 14px; padding: 16px; }
+    .modal-backdrop.open { display: grid; }
     .modal.open { display: grid; }
     .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
     .auth-wrap { max-width: 460px; margin: 60px auto; }
@@ -103,7 +125,12 @@
         </div>
       </div>
       <div class="checkin-wrap">
-        <button id="checkinCircleBtn" class="checkin-circle">打卡</button>
+        <div id="checkinRing" class="checkin-ring">
+          <button id="checkinCircleBtn" class="checkin-circle">
+            <span class="checkin-main">打卡</span>
+            <span id="checkinTimeText" class="checkin-time">--:--:--</span>
+          </button>
+        </div>
         <span class="muted">单击后自动判断为「晚睡/早起」，并可立即补写三项内容</span>
       </div>
       <p class="muted">打卡后可直接选择标签并写入数据库，不需要等待后续开发。</p>
@@ -202,6 +229,8 @@
     const reflectionTagEl = document.getElementById("reflectionTag");
     const happyTagEl = document.getElementById("happyTag");
     const planTagEl = document.getElementById("planTag");
+    const checkinRingEl = document.getElementById("checkinRing");
+    const checkinTimeTextEl = document.getElementById("checkinTimeText");
     const rankModalBackdrop = document.getElementById("rankModalBackdrop");
     const rankModalTitle = document.getElementById("rankModalTitle");
     const rankModalList = document.getElementById("rankModalList");
@@ -403,6 +432,16 @@
       return hour >= 22 || hour < 5 ? "SLEEP" : "WAKE";
     }
 
+    function updateCheckinClock() {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      const ss = String(now.getSeconds()).padStart(2, "0");
+      checkinTimeTextEl.textContent = `${hh}:${mm}:${ss}`;
+      const secProgress = ((now.getSeconds() + now.getMilliseconds() / 1000) / 60) * 360;
+      checkinRingEl.style.setProperty("--progress", `${secProgress.toFixed(2)}deg`);
+    }
+
     function openCreateFromCircle() {
       const checkType = inferCheckinType();
       modalMode = {
@@ -424,6 +463,7 @@
       planRowEl.style.display = "grid";
       directBtn.style.display = "inline-block";
       modalBackdrop.classList.add("open");
+      setMsg("已打开打卡填写弹窗", "ok");
     }
 
     function shouldWarnLateSleep() {
@@ -647,6 +687,9 @@
     authUsernameEl.addEventListener("keydown", (e) => {
       if (e.key === "Enter") auth("login");
     });
+
+    updateCheckinClock();
+    setInterval(updateCheckinClock, 200);
 
     if (getToken()) {
       currentUser = "已登录用户";
