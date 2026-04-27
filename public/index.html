@@ -27,7 +27,12 @@
     .placeholder { color: #9ca3af; cursor: pointer; }
     .edit-btn { background: transparent; color: #4b5563; padding: 0; font-size: 18px; }
     .leader-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    .rank-item { display: flex; justify-content: space-between; border-bottom: 1px dashed #e5e7eb; padding: 8px 0; }
+    .sub-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .sub-btn { background: #f3f4f6; color: #374151; padding: 6px 10px; border-radius: 8px; font-size: 12px; }
+    .rank-item { border-bottom: 1px dashed #e5e7eb; padding: 10px 0; }
+    .rank-top { display: flex; justify-content: space-between; gap: 10px; }
+    .rank-notes { margin-top: 6px; display: grid; gap: 4px; color: #4b5563; font-size: 13px; }
+    .rank-empty { color: #9ca3af; }
     .modal-backdrop { position: fixed; inset: 0; display: none; place-items: center; background: rgba(17, 24, 39, .45); z-index: 20; }
     .modal { width: min(700px, 92vw); background: #fff; border-radius: 14px; padding: 16px; }
     .modal.open { display: grid; }
@@ -82,10 +87,10 @@
         </div>
       </div>
       <div class="row">
-        <button id="sleepBtn" class="primary">晚睡打卡</button>
-        <button id="wakeBtn" class="ghost">早起打卡</button>
+        <button id="sleepBtn" class="primary">晚睡打卡（可稍后补写）</button>
+        <button id="wakeBtn" class="ghost">早起打卡（可稍后补写）</button>
       </div>
-      <p class="muted">22:00 后晚睡打卡会温馨提醒一次，不阻塞打卡。</p>
+      <p class="muted">打卡不强制填写内容，后续可在历史里分别补写「心得 / 计划 / 高兴的事」。</p>
     </div>
 
     <div class="card">
@@ -101,10 +106,12 @@
       <div class="leader-grid">
         <div>
           <h3>晚睡榜（夜猫子）</h3>
+          <div class="sub-actions"><button id="viewNightRankBtn" class="sub-btn">查看晚睡榜详情</button></div>
           <div id="nightOwls"></div>
         </div>
         <div>
           <h3>早起榜（百灵鸟）</h3>
+          <div class="sub-actions"><button id="viewEarlyRankBtn" class="sub-btn">查看早起榜详情</button></div>
           <div id="earlyBirds"></div>
         </div>
       </div>
@@ -114,13 +121,23 @@
   <div id="modalBackdrop" class="modal-backdrop">
     <div class="modal">
       <h3 id="modalTitle">打卡补充信息</h3>
-      <textarea id="reflection" placeholder="今日反思（可选）"></textarea>
-      <textarea id="happyThing" placeholder="今天发生的新鲜/愉快事情（可选）" style="margin-top: 8px;"></textarea>
-      <textarea id="plan" placeholder="明日计划（可选，不强制）" style="margin-top: 8px;"></textarea>
+      <div id="reflectionRow"><textarea id="reflection" placeholder="今日反思（可选）"></textarea></div>
+      <div id="happyThingRow"><textarea id="happyThing" placeholder="今天发生的新鲜/愉快事情（可选）" style="margin-top: 8px;"></textarea></div>
+      <div id="planRow"><textarea id="plan" placeholder="明日计划（可选，不强制）" style="margin-top: 8px;"></textarea></div>
       <div class="actions">
         <button id="directBtn" class="ghost">直接打卡</button>
         <button id="cancelBtn">取消</button>
         <button id="saveBtn" class="primary">提交</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="rankModalBackdrop" class="modal-backdrop">
+    <div class="modal">
+      <h3 id="rankModalTitle">排行榜详情</h3>
+      <div id="rankModalList" class="list"></div>
+      <div class="actions">
+        <button id="closeRankModalBtn" class="primary">关闭</button>
       </div>
     </div>
   </div>
@@ -138,6 +155,9 @@
     const reflectionEl = document.getElementById("reflection");
     const happyThingEl = document.getElementById("happyThing");
     const planEl = document.getElementById("plan");
+    const reflectionRowEl = document.getElementById("reflectionRow");
+    const happyThingRowEl = document.getElementById("happyThingRow");
+    const planRowEl = document.getElementById("planRow");
     const nightOwlsEl = document.getElementById("nightOwls");
     const earlyBirdsEl = document.getElementById("earlyBirds");
     const currentTimeEl = document.getElementById("currentTime");
@@ -146,7 +166,11 @@
     const toastEl = document.getElementById("toast");
     const saveBtn = document.getElementById("saveBtn");
     const directBtn = document.getElementById("directBtn");
+    const rankModalBackdrop = document.getElementById("rankModalBackdrop");
+    const rankModalTitle = document.getElementById("rankModalTitle");
+    const rankModalList = document.getElementById("rankModalList");
     let toastTimer = null;
+    let leaderboardCache = { nightOwls: [], earlyBirds: [] };
 
     let modalMode = {
       type: "CREATE",
@@ -269,10 +293,18 @@
           <div style="margin-top:8px;">${reflectionText}</div>
           <div style="margin-top:6px;">${happyText}</div>
           <div style="margin-top:6px;">${planText}</div>
+          <div class="sub-actions">
+            <button class="sub-btn edit-reflection-btn" data-id="${item.id}">补写心得</button>
+            <button class="sub-btn edit-plan-btn" data-id="${item.id}">补写计划</button>
+            <button class="sub-btn edit-happy-btn" data-id="${item.id}">补写高兴的事</button>
+          </div>
         `;
-        wrap.querySelector(".edit-btn").addEventListener("click", () => openEdit(item));
+        wrap.querySelector(".edit-btn").addEventListener("click", () => openEdit(item, null));
+        wrap.querySelector(".edit-reflection-btn").addEventListener("click", () => openEdit(item, "reflection"));
+        wrap.querySelector(".edit-plan-btn").addEventListener("click", () => openEdit(item, "plan"));
+        wrap.querySelector(".edit-happy-btn").addEventListener("click", () => openEdit(item, "happyThing"));
         wrap.querySelectorAll(".placeholder").forEach((el) => {
-          el.addEventListener("click", () => openEdit(item));
+          el.addEventListener("click", () => openEdit(item, "reflection"));
         });
         historyEl.appendChild(wrap);
       }
@@ -291,6 +323,10 @@
         }
         renderRanks(nightOwlsEl, data.nightOwls || []);
         renderRanks(earlyBirdsEl, data.earlyBirds || []);
+        leaderboardCache = {
+          nightOwls: data.nightOwls || [],
+          earlyBirds: data.earlyBirds || []
+        };
         currentTimeEl.textContent = `当前时间：${formatTime(data.currentTime || new Date().toISOString())}`;
       } catch (error) {
         setMsg(`加载排行榜失败：${String(error.message || error)}`, "err");
@@ -302,9 +338,24 @@
         el.innerHTML = '<div class="muted">暂无数据</div>';
         return;
       }
-      el.innerHTML = rows.map((r, i) =>
-        `<div class="rank-item"><span>#${i + 1} ${r.username}</span><span>${formatTime(r.check_time)}</span></div>`
-      ).join("");
+      const shortText = (text) => {
+        const s = String(text || "").trim();
+        if (!s) return '<span class="rank-empty">暂无</span>';
+        return s.length > 34 ? `${s.slice(0, 34)}...` : s;
+      };
+      el.innerHTML = rows.map((r, i) => `
+        <div class="rank-item">
+          <div class="rank-top">
+            <span>#${i + 1} ${r.username}</span>
+            <span>${formatTime(r.check_time)}</span>
+          </div>
+          <div class="rank-notes">
+            <div>反思：${shortText(r.reflection)}</div>
+            <div>高兴的事：${shortText(r.happy_thing)}</div>
+            <div>明日计划：${shortText(r.plan)}</div>
+          </div>
+        </div>
+      `).join("");
     }
 
     function shouldWarnLateSleep() {
@@ -317,46 +368,70 @@
       return true;
     }
 
-    function openCreate(checkType) {
-      modalMode = {
-        type: "CREATE",
-        checkType,
-        editId: null,
-        original: { reflection: "", happyThing: "", plan: "" }
-      };
-      modalTitle.textContent = checkType === "SLEEP"
-        ? "晚睡打卡：写下反思、新鲜愉快事情和明日计划"
-        : "早起打卡：写下反思、新鲜愉快事情和明日计划";
-      reflectionEl.value = "";
-      happyThingEl.value = "";
-      planEl.value = "";
-      modalBackdrop.classList.add("open");
-      reflectionEl.focus();
-      if (checkType === "SLEEP" && shouldWarnLateSleep()) {
-        alert("22:00 后仍在活动，注意休息哦。");
-      }
-    }
-
-    function openEdit(item) {
+    function openEdit(item, onlyField = null) {
       modalMode = {
         type: "EDIT",
         checkType: item.type,
         editId: item.id,
+        onlyField,
         original: {
           reflection: item.reflection || "",
           happyThing: item.happy_thing || "",
           plan: item.plan || ""
         }
       };
-      modalTitle.textContent = "编辑反思 / 新鲜愉快事情 / 明日计划";
+      modalTitle.textContent = onlyField === "reflection"
+        ? "补写心得"
+        : onlyField === "plan"
+          ? "补写明日计划"
+          : onlyField === "happyThing"
+            ? "补写高兴的事"
+            : "编辑反思 / 新鲜愉快事情 / 明日计划";
       reflectionEl.value = item.reflection || "";
       happyThingEl.value = item.happy_thing || "";
       planEl.value = item.plan || "";
+      reflectionRowEl.style.display = !onlyField || onlyField === "reflection" ? "block" : "none";
+      happyThingRowEl.style.display = !onlyField || onlyField === "happyThing" ? "block" : "none";
+      planRowEl.style.display = !onlyField || onlyField === "plan" ? "block" : "none";
+      directBtn.style.display = "none";
       modalBackdrop.classList.add("open");
     }
 
     function closeModal() {
       modalBackdrop.classList.remove("open");
+      reflectionRowEl.style.display = "block";
+      happyThingRowEl.style.display = "block";
+      planRowEl.style.display = "block";
+      directBtn.style.display = "inline-block";
+    }
+
+    async function createCheckin(type) {
+      try {
+        if (type === "SLEEP" && shouldWarnLateSleep()) {
+          alert("22:00 后仍在活动，注意休息哦。");
+        }
+        setMsg("打卡中...", "ok");
+        const res = await fetch("/api/checkins", {
+          method: "POST",
+          headers: { "content-type": "application/json", ...authHeaders() },
+          body: JSON.stringify({
+            type,
+            reflection: "",
+            happyThing: "",
+            plan: "",
+            checkTime: new Date().toISOString()
+          })
+        });
+        const data = await parseJsonSafe(res);
+        if (!res.ok) {
+          setMsg(humanizeError(data.error || "打卡失败"), "err");
+          return;
+        }
+        await Promise.all([fetchHistory(), fetchLeaderboard()]);
+        setMsg("打卡成功，可稍后补写三项内容", "ok");
+      } catch (error) {
+        setMsg(`打卡失败：${humanizeError(String(error.message || error))}`, "err");
+      }
     }
 
     async function submitModal(forceEmpty = false) {
@@ -380,9 +455,15 @@
           });
         } else {
           const payload = {};
-          if (reflection !== modalMode.original.reflection) payload.reflection = reflection;
-          if (happyThing !== modalMode.original.happyThing) payload.happyThing = happyThing;
-          if (plan !== modalMode.original.plan) payload.plan = plan;
+          if (!modalMode.onlyField || modalMode.onlyField === "reflection") {
+            if (reflection !== modalMode.original.reflection) payload.reflection = reflection;
+          }
+          if (!modalMode.onlyField || modalMode.onlyField === "happyThing") {
+            if (happyThing !== modalMode.original.happyThing) payload.happyThing = happyThing;
+          }
+          if (!modalMode.onlyField || modalMode.onlyField === "plan") {
+            if (plan !== modalMode.original.plan) payload.plan = plan;
+          }
 
           if (!Object.keys(payload).length) {
             closeModal();
@@ -409,6 +490,27 @@
       } finally {
         setCheckinLoading(false);
       }
+    }
+
+    function openRankModal(kind) {
+      const rows = kind === "night" ? leaderboardCache.nightOwls : leaderboardCache.earlyBirds;
+      rankModalTitle.textContent = kind === "night" ? "晚睡榜详情（夜猫子）" : "早起榜详情（百灵鸟）";
+      if (!rows.length) {
+        rankModalList.innerHTML = '<div class="muted">暂无数据</div>';
+      } else {
+        rankModalList.innerHTML = rows.map((r, i) => `
+          <div class="item">
+            <div class="item-head">
+              <span class="tag">#${i + 1} ${r.username}</span>
+              <span class="muted">${formatTime(r.check_time)}</span>
+            </div>
+            <div style="margin-top:8px;">反思：${r.reflection || "暂无"}</div>
+            <div style="margin-top:6px;">高兴的事：${r.happy_thing || "暂无"}</div>
+            <div style="margin-top:6px;">明日计划：${r.plan || "暂无"}</div>
+          </div>
+        `).join("");
+      }
+      rankModalBackdrop.classList.add("open");
     }
 
     async function auth(path) {
@@ -467,11 +569,14 @@
       setMsg("你已退出登录", "ok");
     }
 
-    document.getElementById("sleepBtn").addEventListener("click", () => openCreate("SLEEP"));
-    document.getElementById("wakeBtn").addEventListener("click", () => openCreate("WAKE"));
+    document.getElementById("sleepBtn").addEventListener("click", () => createCheckin("SLEEP"));
+    document.getElementById("wakeBtn").addEventListener("click", () => createCheckin("WAKE"));
     document.getElementById("cancelBtn").addEventListener("click", closeModal);
     document.getElementById("saveBtn").addEventListener("click", () => submitModal(false));
     document.getElementById("directBtn").addEventListener("click", () => submitModal(true));
+    document.getElementById("viewNightRankBtn").addEventListener("click", () => openRankModal("night"));
+    document.getElementById("viewEarlyRankBtn").addEventListener("click", () => openRankModal("early"));
+    document.getElementById("closeRankModalBtn").addEventListener("click", () => rankModalBackdrop.classList.remove("open"));
     document.getElementById("registerBtn").addEventListener("click", () => auth("register"));
     document.getElementById("loginBtn").addEventListener("click", () => auth("login"));
     document.getElementById("logoutBtn").addEventListener("click", logout);
