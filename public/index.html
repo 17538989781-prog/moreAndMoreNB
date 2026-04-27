@@ -3,19 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>睡眠打卡系统</title>
+  <title>开挂人生辅助脚本</title>
   <style>
     :root { color-scheme: light; font-family: "Segoe UI", "PingFang SC", sans-serif; }
-    body { margin: 0; background: linear-gradient(120deg, #eef2ff, #f8fafc); color: #1f2937; }
+    body { margin: 0; background: radial-gradient(1200px 620px at 20% -10%, #dbeafe 0%, #eef2ff 40%, #f8fafc 100%); color: #1f2937; }
     .container { max-width: 1040px; margin: 24px auto; padding: 0 16px; }
-    .card { background: #fff; border-radius: 16px; box-shadow: 0 10px 28px rgba(17, 24, 39, .08); padding: 20px; margin-bottom: 16px; }
+    .card { background: rgba(255, 255, 255, .96); border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 12px 30px rgba(17, 24, 39, .08); padding: 20px; margin-bottom: 16px; backdrop-filter: blur(2px); }
     h1, h2, h3 { margin: 0 0 12px; }
     .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     input, textarea, button { font: inherit; }
     input, textarea { border: 1px solid #d1d5db; border-radius: 10px; padding: 10px; width: 100%; box-sizing: border-box; background: #fff; }
     textarea { min-height: 84px; resize: vertical; }
     button { border: 0; border-radius: 10px; padding: 10px 14px; cursor: pointer; }
-    .primary { background: #1d4ed8; color: #fff; }
+    .primary { background: linear-gradient(135deg, #1d4ed8, #4f46e5); color: #fff; }
     .ghost { background: #eef2ff; color: #1d4ed8; }
     .danger { background: #fee2e2; color: #b91c1c; }
     .muted { color: #6b7280; font-size: 14px; }
@@ -87,6 +87,13 @@
     .history-nav .active { background: #1d4ed8; color: #fff; }
     .sub-actions { display: flex; gap: 8px; margin-top: 8px; }
     .sub-btn { background: #f3f4f6; color: #374151; padding: 6px 10px; border-radius: 8px; font-size: 12px; }
+    .quick-add-btn {
+      background: linear-gradient(135deg, #f59e0b, #ef4444);
+      color: #fff;
+      font-weight: 700;
+      letter-spacing: .2px;
+      box-shadow: 0 8px 16px rgba(239, 68, 68, .25);
+    }
     .rank-item { border-bottom: 1px dashed #e5e7eb; padding: 10px 0; }
     .rank-top { display: flex; justify-content: space-between; gap: 10px; }
     .tag-row { display: grid; gap: 8px; margin-top: 8px; }
@@ -126,7 +133,7 @@
   <div id="toast" class="toast"></div>
   <div class="container hidden" id="authPanel">
     <div class="auth-wrap card">
-      <h1>欢迎来到睡眠打卡</h1>
+      <h1>欢迎来到开挂人生辅助脚本</h1>
       <p class="muted">简洁记录作息，回顾反思与每天的新鲜愉快小事。</p>
       <div class="row">
         <input id="authUsername" placeholder="用户名（至少3位）">
@@ -144,7 +151,7 @@
   <div class="container hidden" id="appPanel">
     <div class="card">
       <div class="row" style="justify-content: space-between;">
-        <h1>睡眠打卡系统</h1>
+        <h1>开挂人生辅助脚本</h1>
         <div class="row">
           <span id="welcome" class="muted"></span>
           <button id="logoutBtn" class="danger">退出登录</button>
@@ -163,9 +170,9 @@
         <button id="supplementLatestBtn" class="sub-btn">签到后补填三项</button>
       </div>
       <div class="sub-actions" style="justify-content:center;">
-        <button id="quickAddReflectionBtn" class="sub-btn">添加心得</button>
-        <button id="quickAddPlanBtn" class="sub-btn">添加计划</button>
-        <button id="quickAddHappyBtn" class="sub-btn">添加高兴的事</button>
+        <button id="quickAddReflectionBtn" class="sub-btn quick-add-btn">添加心得</button>
+        <button id="quickAddPlanBtn" class="sub-btn quick-add-btn">添加计划</button>
+        <button id="quickAddHappyBtn" class="sub-btn quick-add-btn">添加高兴的事</button>
       </div>
     </div>
 
