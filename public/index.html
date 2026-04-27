@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>睡眠打卡系统</title>
+  <style>
+    :root { color-scheme: light; font-family: Arial, sans-serif; }
+    body { margin: 0; background: #f5f7fb; color: #1f2937; }
+    .container { max-width: 980px; margin: 32px auto; padding: 0 16px; }
+    .card { background: #fff; border-radius: 14px; box-shadow: 0 8px 24px rgba(17, 24, 39, .08); padding: 20px; margin-bottom: 18px; }
+    h1, h2 { margin: 0 0 14px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    input, textarea, button { font: inherit; }
+    input, textarea { border: 1px solid #d1d5db; border-radius: 10px; padding: 10px; width: 100%; box-sizing: border-box; }
+    textarea { min-height: 84px; resize: vertical; }
+    .name-input { max-width: 280px; }
+    button { border: 0; border-radius: 10px; padding: 10px 14px; cursor: pointer; }
+    .primary { background: #2563eb; color: #fff; }
+    .ghost { background: #eef2ff; color: #1d4ed8; }
+    .muted { color: #6b7280; font-size: 14px; }
+    .list { display: grid; gap: 10px; }
+    .item { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; }
+    .item-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .tag { padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #eef2ff; color: #3730a3; }
+    .placeholder { color: #9ca3af; cursor: pointer; }
+    .edit-btn { background: transparent; color: #4b5563; padding: 0; font-size: 18px; }
+    .leader-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .rank-item { display: flex; justify-content: space-between; border-bottom: 1px dashed #e5e7eb; padding: 8px 0; }
+    .modal-backdrop { position: fixed; inset: 0; display: none; place-items: center; background: rgba(17, 24, 39, .45); }
+    .modal { width: min(680px, 92vw); background: #fff; border-radius: 14px; padding: 16px; }
+    .modal.open { display: grid; }
+    .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+    @media (max-width: 760px) { .leader-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>睡眠打卡系统</h1>
+      <div class="row">
+        <input id="username" class="name-input" placeholder="输入用户名（用于个人历史）">
+        <button id="sleepBtn" class="primary">晚睡打卡</button>
+        <button id="wakeBtn" class="ghost">早起打卡</button>
+      </div>
+      <p class="muted">22:00 后晚睡打卡会温馨提醒一次，不阻塞打卡。</p>
+    </div>
+
+    <div class="card">
+      <h2>个人历史</h2>
+      <div id="history" class="list"></div>
+    </div>
+
+    <div class="card">
+      <h2>排行榜</h2>
+      <div class="leader-grid">
+        <div>
+          <h3>晚睡榜（夜猫子）</h3>
+          <div id="nightOwls"></div>
+        </div>
+        <div>
+          <h3>早起榜（百灵鸟）</h3>
+          <div id="earlyBirds"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalBackdrop" class="modal-backdrop">
+    <div class="modal">
+      <h3 id="modalTitle">打卡补充信息</h3>
+      <textarea id="reflection" placeholder="今日反思（可选）"></textarea>
+      <textarea id="plan" placeholder="明日计划（可选）" style="margin-top: 8px;"></textarea>
+      <div class="actions">
+        <button id="directBtn" class="ghost">直接打卡</button>
+        <button id="cancelBtn">取消</button>
+        <button id="saveBtn" class="primary">提交</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const usernameEl = document.getElementById("username");
+    const historyEl = document.getElementById("history");
+    const modalBackdrop = document.getElementById("modalBackdrop");
+    const modalTitle = document.getElementById("modalTitle");
+    const reflectionEl = document.getElementById("reflection");
+    const planEl = document.getElementById("plan");
+    const nightOwlsEl = document.getElementById("nightOwls");
+    const earlyBirdsEl = document.getElementById("earlyBirds");
+
+    let modalMode = { type: "CREATE", checkType: "SLEEP", editId: null };
+
+    function getUsername() {
+      const v = usernameEl.value.trim();
+      if (!v) {
+        alert("请先输入用户名");
+        return null;
+      }
+      return v;
+    }
+
+    function formatTime(isoString) {
+      const d = new Date(isoString);
+      return d.toLocaleString("zh-CN", { hour12: false });
+    }
+
+    async function fetchHistory() {
+      const username = getUsername();
+      if (!username) return;
+      const res = await fetch(`/api/checkins?username=${encodeURIComponent(username)}`);
+      const data = await res.json();
+      renderHistory(data.items || []);
+    }
+
+    function renderHistory(items) {
+      historyEl.innerHTML = "";
+      if (!items.length) {
+        historyEl.innerHTML = '<div class="muted">暂无打卡记录</div>';
+        return;
+      }
+      for (const item of items) {
+        const wrap = document.createElement("div");
+        wrap.className = "item";
+        const reflection = item.reflection || "";
+        const plan = item.plan || "";
+        const reflectionText = reflection ? `今日反思：${reflection}` : '<span class="placeholder">暂无内容，点击补充...</span>';
+        const planText = plan ? `明日计划：${plan}` : '<span class="placeholder">暂无内容，点击补充...</span>';
+        wrap.innerHTML = `
+          <div class="item-head">
+            <div>
+              <span class="tag">${item.type === "SLEEP" ? "晚睡" : "早起"}</span>
+              <span class="muted">${formatTime(item.check_time)}</span>
+            </div>
+            <button class="edit-btn" data-id="${item.id}" title="编辑">✎</button>
+          </div>
+          <div style="margin-top:8px;">${reflectionText}</div>
+          <div style="margin-top:6px;">${planText}</div>
+        `;
+        wrap.querySelector(".edit-btn").addEventListener("click", () => openEdit(item));
+        wrap.querySelectorAll(".placeholder").forEach((el) => {
+          el.addEventListener("click", () => openEdit(item));
+        });
+        historyEl.appendChild(wrap);
+      }
+    }
+
+    async function fetchLeaderboard() {
+      const res = await fetch("/api/leaderboard");
+      const data = await res.json();
+      renderRanks(nightOwlsEl, data.nightOwls || []);
+      renderRanks(earlyBirdsEl, data.earlyBirds || []);
+    }
+
+    function renderRanks(el, rows) {
+      if (!rows.length) {
+        el.innerHTML = '<div class="muted">暂无数据</div>';
+        return;
+      }
+      el.innerHTML = rows.map((r, i) =>
+        `<div class="rank-item"><span>#${i + 1} ${r.username}</span><span>${formatTime(r.check_time)}</span></div>`
+      ).join("");
+    }
+
+    function shouldWarnLateSleep() {
+      const now = new Date();
+      const hour = now.getHours();
+      if (hour < 22) return false;
+      const key = `sleep_warned_${now.toISOString().slice(0, 10)}`;
+      if (localStorage.getItem(key) === "1") return false;
+      localStorage.setItem(key, "1");
+      return true;
+    }
+
+    function openCreate(checkType) {
+      modalMode = { type: "CREATE", checkType, editId: null };
+      modalTitle.textContent = checkType === "SLEEP" ? "晚睡打卡（可填写今日反思/明日计划）" : "早起打卡（可填写今日反思/明日计划）";
+      reflectionEl.value = "";
+      planEl.value = "";
+      modalBackdrop.classList.add("open");
+      if (checkType === "SLEEP" && shouldWarnLateSleep()) {
+        alert("22:00 后仍在活动，注意休息哦。");
+      }
+    }
+
+    function openEdit(item) {
+      modalMode = { type: "EDIT", checkType: item.type, editId: item.id };
+      modalTitle.textContent = "编辑反思和计划";
+      reflectionEl.value = item.reflection || "";
+      planEl.value = item.plan || "";
+      modalBackdrop.classList.add("open");
+    }
+
+    function closeModal() {
+      modalBackdrop.classList.remove("open");
+    }
+
+    async function submitModal(forceEmpty = false) {
+      const username = getUsername();
+      if (!username) return;
+      const reflection = forceEmpty ? "" : reflectionEl.value.trim();
+      const plan = forceEmpty ? "" : planEl.value.trim();
+
+      if (modalMode.type === "CREATE") {
+        await fetch("/api/checkins", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            username,
+            type: modalMode.checkType,
+            reflection,
+            plan,
+            checkTime: new Date().toISOString()
+          })
+        });
+      } else {
+        await fetch(`/api/checkins/${modalMode.editId}`, {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ reflection, plan })
+        });
+      }
+
+      closeModal();
+      await Promise.all([fetchHistory(), fetchLeaderboard()]);
+    }
+
+    document.getElementById("sleepBtn").addEventListener("click", () => openCreate("SLEEP"));
+    document.getElementById("wakeBtn").addEventListener("click", () => openCreate("WAKE"));
+    document.getElementById("cancelBtn").addEventListener("click", closeModal);
+    document.getElementById("saveBtn").addEventListener("click", () => submitModal(false));
+    document.getElementById("directBtn").addEventListener("click", () => submitModal(true));
+    usernameEl.addEventListener("change", fetchHistory);
+    usernameEl.addEventListener("blur", fetchHistory);
+
+    fetchLeaderboard();
+  </script>
+</body>
+</html>
