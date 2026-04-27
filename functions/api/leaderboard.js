@@ -2,7 +2,8 @@ import {
   CHECKINS_TABLE,
   ensureCheckinsTable,
   formatErrorMessage,
-  json
+  json,
+  USERS_TABLE
 } from "./_lib.js";
 
 export async function onRequestGet(context) {
@@ -14,7 +15,7 @@ export async function onRequestGet(context) {
     const nightOwls = await env.DB.prepare(
       `SELECT u.username, c.check_time, c.reflection, c.happy_thing, c.plan
        FROM ${CHECKINS_TABLE} c
-       JOIN users u ON u.id = c.user_id
+       JOIN ${USERS_TABLE} u ON u.id = c.user_id
        WHERE c.type = 'SLEEP'
          AND julianday(c.check_time) >= julianday(?) - 2
        ORDER BY
@@ -31,7 +32,7 @@ export async function onRequestGet(context) {
     const earlyBirds = await env.DB.prepare(
       `SELECT u.username, c.check_time, c.reflection, c.happy_thing, c.plan
        FROM ${CHECKINS_TABLE} c
-       JOIN users u ON u.id = c.user_id
+       JOIN ${USERS_TABLE} u ON u.id = c.user_id
        WHERE c.type = 'WAKE'
          AND julianday(c.check_time) >= julianday(?) - 2
        ORDER BY

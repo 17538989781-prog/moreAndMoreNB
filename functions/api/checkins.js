@@ -3,7 +3,8 @@ import {
   ensureCheckinsTable,
   formatErrorMessage,
   getAuthUser,
-  json
+  json,
+  USERS_TABLE
 } from "./_lib.js";
 
 export async function onRequestGet(context) {
@@ -16,7 +17,7 @@ export async function onRequestGet(context) {
     const result = await env.DB.prepare(
       `SELECT c.id, u.username, c.type, c.check_time, c.reflection, c.happy_thing, c.plan
        FROM ${CHECKINS_TABLE} c
-       JOIN users u ON u.id = c.user_id
+       JOIN ${USERS_TABLE} u ON u.id = c.user_id
        WHERE c.user_id = ?
        ORDER BY c.check_time DESC`
     ).bind(user.id).all();

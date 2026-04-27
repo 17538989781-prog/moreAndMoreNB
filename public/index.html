@@ -148,7 +148,12 @@
     const directBtn = document.getElementById("directBtn");
     let toastTimer = null;
 
-    let modalMode = { type: "CREATE", checkType: "SLEEP", editId: null };
+    let modalMode = {
+      type: "CREATE",
+      checkType: "SLEEP",
+      editId: null,
+      original: { reflection: "", happyThing: "", plan: "" }
+    };
     let currentUser = null;
 
     function getToken() {
@@ -313,7 +318,12 @@
     }
 
     function openCreate(checkType) {
-      modalMode = { type: "CREATE", checkType, editId: null };
+      modalMode = {
+        type: "CREATE",
+        checkType,
+        editId: null,
+        original: { reflection: "", happyThing: "", plan: "" }
+      };
       modalTitle.textContent = checkType === "SLEEP"
         ? "晚睡打卡：写下反思、新鲜愉快事情和明日计划"
         : "早起打卡：写下反思、新鲜愉快事情和明日计划";
@@ -328,7 +338,16 @@
     }
 
     function openEdit(item) {
-      modalMode = { type: "EDIT", checkType: item.type, editId: item.id };
+      modalMode = {
+        type: "EDIT",
+        checkType: item.type,
+        editId: item.id,
+        original: {
+          reflection: item.reflection || "",
+          happyThing: item.happy_thing || "",
+          plan: item.plan || ""
+        }
+      };
       modalTitle.textContent = "编辑反思 / 新鲜愉快事情 / 明日计划";
       reflectionEl.value = item.reflection || "";
       happyThingEl.value = item.happy_thing || "";
@@ -360,10 +379,21 @@
             })
           });
         } else {
+          const payload = {};
+          if (reflection !== modalMode.original.reflection) payload.reflection = reflection;
+          if (happyThing !== modalMode.original.happyThing) payload.happyThing = happyThing;
+          if (plan !== modalMode.original.plan) payload.plan = plan;
+
+          if (!Object.keys(payload).length) {
+            closeModal();
+            setMsg("未检测到改动，无需保存", "ok");
+            return;
+          }
+
           res = await fetch(`/api/checkins/${modalMode.editId}`, {
-            method: "PUT",
+            method: "PATCH",
             headers: { "content-type": "application/json", ...authHeaders() },
-            body: JSON.stringify({ reflection, happyThing, plan })
+            body: JSON.stringify(payload)
           });
         }
         const data = await parseJsonSafe(res);
