@@ -9,6 +9,15 @@
     body { margin: 0; background: radial-gradient(1200px 620px at 20% -10%, #dbeafe 0%, #eef2ff 40%, #f8fafc 100%); color: #1f2937; }
     .container { max-width: 1040px; margin: 24px auto; padding: 0 16px; }
     .card { background: rgba(255, 255, 255, .96); border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 12px 30px rgba(17, 24, 39, .08); padding: 20px; margin-bottom: 16px; backdrop-filter: blur(2px); }
+    .hero-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .hero-badge {
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: #1e3a8a;
+      background: linear-gradient(135deg, #dbeafe, #e0e7ff);
+      border: 1px solid #bfdbfe;
+    }
     h1, h2, h3 { margin: 0 0 12px; }
     .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     input, textarea, button { font: inherit; }
@@ -94,6 +103,26 @@
       letter-spacing: .2px;
       box-shadow: 0 8px 16px rgba(239, 68, 68, .25);
     }
+    .intro-btn {
+      background: linear-gradient(135deg, #0ea5e9, #2563eb);
+      color: #fff;
+      font-weight: 700;
+      box-shadow: 0 8px 16px rgba(37, 99, 235, .22);
+    }
+    .notice-btn {
+      background: linear-gradient(135deg, #f97316, #dc2626);
+      color: #fff;
+      font-weight: 700;
+      box-shadow: 0 8px 16px rgba(220, 38, 38, .22);
+    }
+    .section-note {
+      background: linear-gradient(135deg, #eff6ff, #f5f3ff);
+      border: 1px solid #dbeafe;
+      border-radius: 12px;
+      padding: 10px 12px;
+      color: #334155;
+      font-size: 14px;
+    }
     .rank-item { border-bottom: 1px dashed #e5e7eb; padding: 10px 0; }
     .rank-top { display: flex; justify-content: space-between; gap: 10px; }
     .tag-row { display: grid; gap: 8px; margin-top: 8px; }
@@ -126,7 +155,15 @@
     .toast.ok { display: block; background: #ecfdf3; color: #166534; border: 1px solid #86efac; }
     .toast.err { display: block; background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; }
     button:disabled { opacity: .65; cursor: not-allowed; }
-    @media (max-width: 760px) { .leader-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 760px) {
+      .leader-grid { grid-template-columns: 1fr; }
+      .hero-title { width: 100%; }
+      .hero-title h1 { font-size: 24px; }
+      .intro-btn, .notice-btn { padding: 8px 12px; font-size: 13px; }
+      .sub-actions { justify-content: stretch !important; }
+      .sub-actions button { flex: 1 1 auto; }
+      .checkin-wrap .muted { text-align: center; }
+    }
   </style>
 </head>
 <body>
@@ -151,7 +188,12 @@
   <div class="container hidden" id="appPanel">
     <div class="card">
       <div class="row" style="justify-content: space-between;">
-        <h1>开挂人生辅助脚本</h1>
+        <div class="hero-title">
+          <h1>开挂人生辅助脚本</h1>
+          <span class="hero-badge">成长模式已开启</span>
+          <button id="introBtn" class="intro-btn">功能介绍</button>
+          <button id="noticeBtn" class="notice-btn">用户须知</button>
+        </div>
         <div class="row">
           <span id="welcome" class="muted"></span>
           <button id="logoutBtn" class="danger">退出登录</button>
@@ -165,7 +207,7 @@
         </div>
         <span class="muted">单击后自动判断为「晚睡/早起」，并可立即补写三项内容</span>
       </div>
-      <p class="muted">打卡后可直接选择标签并写入数据库，不需要等待后续开发。</p>
+      <div class="section-note">目的：制定计划、记录反思心得、沉淀高兴的事情，让自己更清晰、更自律，也更快乐。</div>
       <div class="sub-actions" style="justify-content:center;">
         <button id="supplementLatestBtn" class="sub-btn">签到后补填三项</button>
       </div>
@@ -255,6 +297,16 @@
     </div>
   </div>
 
+  <div id="infoModalBackdrop" class="modal-backdrop">
+    <div class="modal">
+      <h3 id="infoModalTitle">功能介绍</h3>
+      <div id="infoModalBody" class="list" style="max-height: 56vh; overflow:auto;"></div>
+      <div class="actions">
+        <button id="closeInfoModalBtn" class="primary">我知道了</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const authPanel = document.getElementById("authPanel");
     const appPanel = document.getElementById("appPanel");
@@ -286,6 +338,9 @@
     const rankModalBackdrop = document.getElementById("rankModalBackdrop");
     const rankModalTitle = document.getElementById("rankModalTitle");
     const rankModalList = document.getElementById("rankModalList");
+    const infoModalBackdrop = document.getElementById("infoModalBackdrop");
+    const infoModalTitle = document.getElementById("infoModalTitle");
+    const infoModalBody = document.getElementById("infoModalBody");
     const commentInputEl = document.getElementById("commentInput");
     const commentSendBtn = document.getElementById("commentSendBtn");
     const commentsListEl = document.getElementById("commentsList");
@@ -843,6 +898,51 @@
       }
     }
 
+    function openInfoModal(type) {
+      if (type === "intro") {
+        infoModalTitle.textContent = "功能介绍";
+        infoModalBody.innerHTML = `
+          <div class="item">
+            <div><strong>1）打卡与节奏管理</strong></div>
+            <div style="margin-top:6px;">通过早晚打卡保持作息节奏，重复打卡会按最新记录参与排行榜。</div>
+          </div>
+          <div class="item">
+            <div><strong>2）三项成长记录</strong></div>
+            <div style="margin-top:6px;">可随时记录心得、明日计划、高兴的事，帮助你复盘和持续优化。</div>
+          </div>
+          <div class="item">
+            <div><strong>3）排行榜与反馈</strong></div>
+            <div style="margin-top:6px;">查看早起榜与夜猫子榜，了解自己在当前时间段的状态变化。</div>
+          </div>
+          <div class="item">
+            <div><strong>4）公共评论区</strong></div>
+            <div style="margin-top:6px;">支持公开发言，互相鼓励，形成正向习惯氛围。</div>
+          </div>
+        `;
+      } else {
+        infoModalTitle.textContent = "用户须知";
+        infoModalBody.innerHTML = `
+          <div class="item">
+            <div><strong>请理性使用</strong></div>
+            <div style="margin-top:6px;">本工具用于自我管理与习惯养成，不替代专业医疗、心理或法律建议。</div>
+          </div>
+          <div class="item">
+            <div><strong>坚持比完美更重要</strong></div>
+            <div style="margin-top:6px;">允许偶尔中断，重点是持续记录、持续调整，形成长期正反馈。</div>
+          </div>
+          <div class="item">
+            <div><strong>隐私与内容边界</strong></div>
+            <div style="margin-top:6px;">公共评论区所有用户可见，请避免发布隐私信息与敏感内容。</div>
+          </div>
+          <div class="item">
+            <div><strong>今天就开始</strong></div>
+            <div style="margin-top:6px;">先完成一次打卡，再写一句计划、一条心得和一件开心小事。</div>
+          </div>
+        `;
+      }
+      infoModalBackdrop.classList.add("open");
+    }
+
     async function auth(path) {
       const username = authUsernameEl.value.trim();
       const password = authPasswordEl.value;
@@ -912,6 +1012,9 @@
     document.getElementById("viewNightRankBtn").addEventListener("click", () => openRankModal("night"));
     document.getElementById("viewEarlyRankBtn").addEventListener("click", () => openRankModal("early"));
     document.getElementById("closeRankModalBtn").addEventListener("click", () => rankModalBackdrop.classList.remove("open"));
+    document.getElementById("introBtn").addEventListener("click", () => openInfoModal("intro"));
+    document.getElementById("noticeBtn").addEventListener("click", () => openInfoModal("notice"));
+    document.getElementById("closeInfoModalBtn").addEventListener("click", () => infoModalBackdrop.classList.remove("open"));
     document.getElementById("registerBtn").addEventListener("click", () => auth("register"));
     document.getElementById("loginBtn").addEventListener("click", () => auth("login"));
     document.getElementById("logoutBtn").addEventListener("click", logout);
