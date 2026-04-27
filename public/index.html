@@ -131,6 +131,7 @@
             <span id="checkinTimeText" class="checkin-time">--:--:--</span>
           </button>
         </div>
+        <span class="muted">北京时间</span>
         <span class="muted">单击后自动判断为「晚睡/早起」，并可立即补写三项内容</span>
       </div>
       <p class="muted">打卡后可直接选择标签并写入数据库，不需要等待后续开发。</p>
@@ -427,18 +428,35 @@
       `).join("");
     }
 
+    function getBeijingTimeParts() {
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat("zh-CN", {
+        timeZone: "Asia/Shanghai",
+        hour12: false,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      });
+      const parts = formatter.formatToParts(now);
+      const pick = (type) => parts.find((p) => p.type === type)?.value || "00";
+      return {
+        hour: Number(pick("hour")),
+        minute: Number(pick("minute")),
+        second: Number(pick("second")),
+        text: `${pick("hour")}:${pick("minute")}:${pick("second")}`
+      };
+    }
+
     function inferCheckinType() {
-      const hour = new Date().getHours();
+      const hour = getBeijingTimeParts().hour;
       return hour >= 22 || hour < 5 ? "SLEEP" : "WAKE";
     }
 
     function updateCheckinClock() {
       const now = new Date();
-      const hh = String(now.getHours()).padStart(2, "0");
-      const mm = String(now.getMinutes()).padStart(2, "0");
-      const ss = String(now.getSeconds()).padStart(2, "0");
-      checkinTimeTextEl.textContent = `${hh}:${mm}:${ss}`;
-      const secProgress = ((now.getSeconds() + now.getMilliseconds() / 1000) / 60) * 360;
+      const bj = getBeijingTimeParts();
+      checkinTimeTextEl.textContent = bj.text;
+      const secProgress = ((bj.second + now.getMilliseconds() / 1000) / 60) * 360;
       checkinRingEl.style.setProperty("--progress", `${secProgress.toFixed(2)}deg`);
     }
 
