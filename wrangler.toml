@@ -5,5 +5,5 @@ pages_build_output_dir = "./public"
 [[d1_databases]]
 binding = "DB"
 database_name = "sleep-checkin-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "ee4d0e02-39a9-4e8c-8b48-f63cf5bc05ea"
 migrations_dir = "./db"
