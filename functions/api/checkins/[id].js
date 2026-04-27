@@ -5,6 +5,21 @@ function json(data, status = 200) {
   });
 }
 
+async function ensureCheckinsTable(env) {
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS checkins_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      type TEXT NOT NULL CHECK (type IN ('SLEEP', 'WAKE')),
+      check_time TEXT NOT NULL,
+      reflection TEXT NOT NULL DEFAULT '',
+      happy_thing TEXT NOT NULL DEFAULT '',
+      plan TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  ).run();
+}
+
 async function getAuthUser(request, env) {
   const auth = request.headers.get("authorization") || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
@@ -24,6 +39,7 @@ export async function onRequestPut(context) {
     const { params, request, env } = context;
     const user = await getAuthUser(request, env);
     if (!user) return json({ error: "unauthorized" }, 401);
+    await ensureCheckinsTable(env);
     const id = Number(params.id);
 
     if (!Number.isInteger(id) || id <= 0) {
@@ -40,7 +56,7 @@ export async function onRequestPut(context) {
     const plan = body.plan == null ? "" : String(body.plan).trim();
 
     await env.DB.prepare(
-      `UPDATE checkins
+      `UPDATE checkins_v2
        SET reflection = ?, happy_thing = ?, plan = ?
        WHERE id = ? AND user_id = ?`
     ).bind(reflection, happyThing, plan, id, user.id).run();
