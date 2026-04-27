@@ -76,11 +76,11 @@ export async function onRequestGet(context) {
        ORDER BY
          (
            CASE
-             WHEN CAST(strftime('%H', l.check_time, 'localtime') AS INTEGER) < 12
-              THEN CAST(strftime('%H', l.check_time, 'localtime') AS INTEGER) + 24
-            ELSE CAST(strftime('%H', l.check_time, 'localtime') AS INTEGER)
+             WHEN CAST(strftime('%H', l.check_time, '+8 hours') AS INTEGER) < 12
+              THEN CAST(strftime('%H', l.check_time, '+8 hours') AS INTEGER) + 24
+            ELSE CAST(strftime('%H', l.check_time, '+8 hours') AS INTEGER)
            END
-         ) * 60 + CAST(strftime('%M', l.check_time, 'localtime') AS INTEGER) DESC
+         ) * 60 + CAST(strftime('%M', l.check_time, '+8 hours') AS INTEGER) DESC
        LIMIT 20`
     ).bind(nightStart, nightEnd).all();
 
@@ -98,8 +98,8 @@ export async function onRequestGet(context) {
        JOIN ${USERS_TABLE} u ON u.id = l.user_id
        WHERE l.rn = 1
        ORDER BY
-         CAST(strftime('%H', l.check_time, 'localtime') AS INTEGER) * 60 +
-         CAST(strftime('%M', l.check_time, 'localtime') AS INTEGER) ASC
+         CAST(strftime('%H', l.check_time, '+8 hours') AS INTEGER) * 60 +
+         CAST(strftime('%M', l.check_time, '+8 hours') AS INTEGER) ASC
        LIMIT 20`
     ).bind(earlyStart, earlyEnd).all();
 

@@ -359,7 +359,15 @@
 
     function formatTime(isoString) {
       const d = new Date(isoString);
-      return d.toLocaleString("zh-CN", { hour12: false });
+      const utcMs = d.getTime() + d.getTimezoneOffset() * 60 * 1000;
+      const bj = new Date(utcMs + 8 * 60 * 60 * 1000);
+      const yyyy = bj.getUTCFullYear();
+      const mm = String(bj.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(bj.getUTCDate()).padStart(2, "0");
+      const hh = String(bj.getUTCHours()).padStart(2, "0");
+      const mi = String(bj.getUTCMinutes()).padStart(2, "0");
+      const ss = String(bj.getUTCSeconds()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
     }
 
     function getBeijingTimeParts() {
