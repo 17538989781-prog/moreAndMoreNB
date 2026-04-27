@@ -214,7 +214,7 @@
       type: "CREATE",
       checkType: "SLEEP",
       editId: null,
-      original: { reflection: "", happyThing: "", plan: "" }
+      original: { reflection: "", reflectionTag: "", happyThing: "", happyTag: "", plan: "", planTag: "" }
     };
     let currentUser = null;
 
@@ -403,14 +403,6 @@
       return hour >= 22 || hour < 5 ? "SLEEP" : "WAKE";
     }
 
-    function formatWithTag(tag, text) {
-      const content = String(text || "").trim();
-      const label = String(tag || "").trim();
-      if (!label) return content;
-      if (!content) return `[${label}]`;
-      return `[${label}] ${content}`;
-    }
-
     function openCreateFromCircle() {
       const checkType = inferCheckinType();
       modalMode = {
@@ -418,7 +410,7 @@
         checkType,
         editId: null,
         onlyField: null,
-        original: { reflection: "", happyThing: "", plan: "" }
+        original: { reflection: "", reflectionTag: "", happyThing: "", happyTag: "", plan: "", planTag: "" }
       };
       modalTitle.textContent = checkType === "SLEEP" ? "本次自动识别为：晚睡打卡" : "本次自动识别为：早起打卡";
       reflectionEl.value = "";
@@ -452,8 +444,11 @@
         onlyField,
         original: {
           reflection: item.reflection || "",
+          reflectionTag: item.reflection_tag || "",
           happyThing: item.happy_thing || "",
-          plan: item.plan || ""
+          happyTag: item.happy_tag || "",
+          plan: item.plan || "",
+          planTag: item.plan_tag || ""
         }
       };
       modalTitle.textContent = onlyField === "reflection"
@@ -466,9 +461,9 @@
       reflectionEl.value = item.reflection || "";
       happyThingEl.value = item.happy_thing || "";
       planEl.value = item.plan || "";
-      reflectionTagEl.value = "";
-      happyTagEl.value = "";
-      planTagEl.value = "";
+      reflectionTagEl.value = item.reflection_tag || "";
+      happyTagEl.value = item.happy_tag || "";
+      planTagEl.value = item.plan_tag || "";
       reflectionRowEl.style.display = !onlyField || onlyField === "reflection" ? "block" : "none";
       happyThingRowEl.style.display = !onlyField || onlyField === "happyThing" ? "block" : "none";
       planRowEl.style.display = !onlyField || onlyField === "plan" ? "block" : "none";
@@ -485,9 +480,12 @@
     }
 
     async function submitModal(forceEmpty = false) {
-      const reflection = forceEmpty ? "" : formatWithTag(reflectionTagEl.value, reflectionEl.value);
-      const happyThing = forceEmpty ? "" : formatWithTag(happyTagEl.value, happyThingEl.value);
-      const plan = forceEmpty ? "" : formatWithTag(planTagEl.value, planEl.value);
+      const reflection = forceEmpty ? "" : String(reflectionEl.value || "").trim();
+      const reflectionTag = forceEmpty ? "" : String(reflectionTagEl.value || "").trim();
+      const happyThing = forceEmpty ? "" : String(happyThingEl.value || "").trim();
+      const happyTag = forceEmpty ? "" : String(happyTagEl.value || "").trim();
+      const plan = forceEmpty ? "" : String(planEl.value || "").trim();
+      const planTag = forceEmpty ? "" : String(planTagEl.value || "").trim();
       try {
         setCheckinLoading(true, forceEmpty ? "direct" : "save");
         let res;
@@ -498,8 +496,11 @@
             body: JSON.stringify({
               type: modalMode.checkType,
               reflection,
+              reflectionTag,
               happyThing,
+              happyTag,
               plan,
+              planTag,
               checkTime: new Date().toISOString()
             })
           });
@@ -507,12 +508,15 @@
           const payload = {};
           if (!modalMode.onlyField || modalMode.onlyField === "reflection") {
             if (reflection !== modalMode.original.reflection) payload.reflection = reflection;
+            if (reflectionTag !== modalMode.original.reflectionTag) payload.reflectionTag = reflectionTag;
           }
           if (!modalMode.onlyField || modalMode.onlyField === "happyThing") {
             if (happyThing !== modalMode.original.happyThing) payload.happyThing = happyThing;
+            if (happyTag !== modalMode.original.happyTag) payload.happyTag = happyTag;
           }
           if (!modalMode.onlyField || modalMode.onlyField === "plan") {
             if (plan !== modalMode.original.plan) payload.plan = plan;
+            if (planTag !== modalMode.original.planTag) payload.planTag = planTag;
           }
 
           if (!Object.keys(payload).length) {

@@ -24,14 +24,17 @@ export async function onRequestPut(context) {
     }
 
     const reflection = body.reflection == null ? "" : String(body.reflection).trim();
+    const reflectionTag = body.reflectionTag == null ? "" : String(body.reflectionTag).trim();
     const happyThing = body.happyThing == null ? "" : String(body.happyThing).trim();
+    const happyTag = body.happyTag == null ? "" : String(body.happyTag).trim();
     const plan = body.plan == null ? "" : String(body.plan).trim();
+    const planTag = body.planTag == null ? "" : String(body.planTag).trim();
 
     await env.DB.prepare(
       `UPDATE ${CHECKINS_TABLE}
-       SET reflection = ?, happy_thing = ?, plan = ?
+       SET reflection = ?, reflection_tag = ?, happy_thing = ?, happy_tag = ?, plan = ?, plan_tag = ?
        WHERE id = ? AND user_id = ?`
-    ).bind(reflection, happyThing, plan, id, user.id).run();
+    ).bind(reflection, reflectionTag, happyThing, happyTag, plan, planTag, id, user.id).run();
 
     return json({ ok: true });
   } catch (error) {
@@ -57,14 +60,17 @@ export async function onRequestPatch(context) {
     }
 
     const hasReflection = Object.prototype.hasOwnProperty.call(body, "reflection");
+    const hasReflectionTag = Object.prototype.hasOwnProperty.call(body, "reflectionTag");
     const hasHappyThing = Object.prototype.hasOwnProperty.call(body, "happyThing");
+    const hasHappyTag = Object.prototype.hasOwnProperty.call(body, "happyTag");
     const hasPlan = Object.prototype.hasOwnProperty.call(body, "plan");
-    if (!hasReflection && !hasHappyThing && !hasPlan) {
-      return json({ error: "at least one of reflection, happyThing, plan is required" }, 400);
+    const hasPlanTag = Object.prototype.hasOwnProperty.call(body, "planTag");
+    if (!hasReflection && !hasReflectionTag && !hasHappyThing && !hasHappyTag && !hasPlan && !hasPlanTag) {
+      return json({ error: "at least one of reflection/reflectionTag/happyThing/happyTag/plan/planTag is required" }, 400);
     }
 
     const current = await env.DB.prepare(
-      `SELECT reflection, happy_thing, plan
+      `SELECT reflection, reflection_tag, happy_thing, happy_tag, plan, plan_tag
        FROM ${CHECKINS_TABLE}
        WHERE id = ? AND user_id = ?
        LIMIT 1`
@@ -75,14 +81,17 @@ export async function onRequestPatch(context) {
     }
 
     const reflection = hasReflection ? String(body.reflection == null ? "" : body.reflection).trim() : current.reflection;
+    const reflectionTag = hasReflectionTag ? String(body.reflectionTag == null ? "" : body.reflectionTag).trim() : current.reflection_tag;
     const happyThing = hasHappyThing ? String(body.happyThing == null ? "" : body.happyThing).trim() : current.happy_thing;
+    const happyTag = hasHappyTag ? String(body.happyTag == null ? "" : body.happyTag).trim() : current.happy_tag;
     const plan = hasPlan ? String(body.plan == null ? "" : body.plan).trim() : current.plan;
+    const planTag = hasPlanTag ? String(body.planTag == null ? "" : body.planTag).trim() : current.plan_tag;
 
     await env.DB.prepare(
       `UPDATE ${CHECKINS_TABLE}
-       SET reflection = ?, happy_thing = ?, plan = ?
+       SET reflection = ?, reflection_tag = ?, happy_thing = ?, happy_tag = ?, plan = ?, plan_tag = ?
        WHERE id = ? AND user_id = ?`
-    ).bind(reflection, happyThing, plan, id, user.id).run();
+    ).bind(reflection, reflectionTag, happyThing, happyTag, plan, planTag, id, user.id).run();
 
     return json({ ok: true });
   } catch (error) {

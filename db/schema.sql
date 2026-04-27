@@ -20,8 +20,11 @@ CREATE TABLE IF NOT EXISTS checkins_v2 (
   type TEXT NOT NULL CHECK (type IN ('SLEEP', 'WAKE')),
   check_time TEXT NOT NULL,
   reflection TEXT NOT NULL DEFAULT '',
+  reflection_tag TEXT NOT NULL DEFAULT '',
   happy_thing TEXT NOT NULL DEFAULT '',
+  happy_tag TEXT NOT NULL DEFAULT '',
   plan TEXT NOT NULL DEFAULT '',
+  plan_tag TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (user_id) REFERENCES users_v2(id)
 );

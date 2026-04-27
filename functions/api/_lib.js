@@ -71,12 +71,27 @@ export async function ensureCheckinsTable(env) {
       type TEXT NOT NULL CHECK (type IN ('SLEEP', 'WAKE')),
       check_time TEXT NOT NULL,
       reflection TEXT NOT NULL DEFAULT '',
+      reflection_tag TEXT NOT NULL DEFAULT '',
       happy_thing TEXT NOT NULL DEFAULT '',
+      happy_tag TEXT NOT NULL DEFAULT '',
       plan TEXT NOT NULL DEFAULT '',
+      plan_tag TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES ${USERS_TABLE}(id)
     )`
   ).run();
+
+  const tableInfo = await env.DB.prepare(`PRAGMA table_info(${CHECKINS_TABLE})`).all();
+  const columns = new Set((tableInfo.results || []).map((col) => String(col.name)));
+  if (!columns.has("reflection_tag")) {
+    await env.DB.prepare(`ALTER TABLE ${CHECKINS_TABLE} ADD COLUMN reflection_tag TEXT NOT NULL DEFAULT ''`).run();
+  }
+  if (!columns.has("happy_tag")) {
+    await env.DB.prepare(`ALTER TABLE ${CHECKINS_TABLE} ADD COLUMN happy_tag TEXT NOT NULL DEFAULT ''`).run();
+  }
+  if (!columns.has("plan_tag")) {
+    await env.DB.prepare(`ALTER TABLE ${CHECKINS_TABLE} ADD COLUMN plan_tag TEXT NOT NULL DEFAULT ''`).run();
+  }
 
   await env.DB.prepare(
     `CREATE INDEX IF NOT EXISTS idx_${CHECKINS_TABLE}_user_created
