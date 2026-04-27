@@ -37,10 +37,27 @@
     .status { margin-top: 10px; font-size: 14px; }
     .status.ok { color: #166534; }
     .status.err { color: #b91c1c; }
+    .toast {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 14px;
+      border-radius: 10px;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, .12);
+      font-size: 14px;
+      z-index: 30;
+      display: none;
+      max-width: min(92vw, 760px);
+    }
+    .toast.ok { display: block; background: #ecfdf3; color: #166534; border: 1px solid #86efac; }
+    .toast.err { display: block; background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; }
+    button:disabled { opacity: .65; cursor: not-allowed; }
     @media (max-width: 760px) { .leader-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
+  <div id="toast" class="toast"></div>
   <div class="container hidden" id="authPanel">
     <div class="auth-wrap card">
       <h1>欢迎来到睡眠打卡</h1>
@@ -54,7 +71,7 @@
         <button id="loginBtn" class="primary">登录</button>
       </div>
       <p id="authMsg" class="muted"></p>
-      <p id="globalMsg" class="status"></p>
+      <p class="muted">支持回车快速登录，明日计划可不填。</p>
     </div>
   </div>
 
@@ -129,7 +146,10 @@
     const currentTimeEl = document.getElementById("currentTime");
     const registerBtn = document.getElementById("registerBtn");
     const loginBtn = document.getElementById("loginBtn");
-    const globalMsgEl = document.getElementById("globalMsg");
+    const toastEl = document.getElementById("toast");
+    const saveBtn = document.getElementById("saveBtn");
+    const directBtn = document.getElementById("directBtn");
+    let toastTimer = null;
 
     let modalMode = { type: "CREATE", checkType: "SLEEP", editId: null };
     let currentUser = null;
@@ -152,8 +172,43 @@
     }
 
     function setMsg(text, type = "ok") {
-      globalMsgEl.textContent = text || "";
-      globalMsgEl.className = `status ${type}`;
+      if (!text) {
+        toastEl.className = "toast";
+        toastEl.textContent = "";
+        return;
+      }
+      toastEl.textContent = text;
+      toastEl.className = `toast ${type}`;
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toastEl.className = "toast";
+      }, 2600);
+    }
+
+    function humanizeError(msg) {
+      const raw = String(msg || "").toLowerCase();
+      if (!raw) return "操作失败，请稍后重试。";
+      if (raw.includes("username already exists")) return "该用户名已被注册，请换一个。";
+      if (raw.includes("invalid credentials")) return "用户名或密码不正确。";
+      if (raw.includes("username must be at least")) return "用户名至少 3 位。";
+      if (raw.includes("password must be at least")) return "密码至少 6 位。";
+      if (raw.includes("unauthorized")) return "登录状态已失效，请重新登录。";
+      if (raw.includes("network")) return "网络异常，请检查网络后重试。";
+      return msg;
+    }
+
+    function setAuthLoading(loading, action = "login") {
+      registerBtn.disabled = loading;
+      loginBtn.disabled = loading;
+      registerBtn.textContent = loading && action === "register" ? "注册中..." : "注册";
+      loginBtn.textContent = loading && action === "login" ? "登录中..." : "登录";
+    }
+
+    function setCheckinLoading(loading, action = "save") {
+      saveBtn.disabled = loading;
+      directBtn.disabled = loading;
+      saveBtn.textContent = loading && action === "save" ? "提交中..." : "提交";
+      directBtn.textContent = loading && action === "direct" ? "打卡中..." : "直接打卡";
     }
 
     async function parseJsonSafe(res) {
@@ -269,6 +324,7 @@
       happyThingEl.value = "";
       planEl.value = "";
       modalBackdrop.classList.add("open");
+      reflectionEl.focus();
       if (checkType === "SLEEP" && shouldWarnLateSleep()) {
         alert("22:00 后仍在活动，注意休息哦。");
       }
@@ -292,6 +348,7 @@
       const happyThing = forceEmpty ? "" : happyThingEl.value.trim();
       const plan = forceEmpty ? "" : planEl.value.trim();
       try {
+        setCheckinLoading(true, forceEmpty ? "direct" : "save");
         let res;
         if (modalMode.type === "CREATE") {
           res = await fetch("/api/checkins", {
@@ -314,14 +371,16 @@
         }
         const data = await parseJsonSafe(res);
         if (!res.ok) {
-          setMsg(data.error || "保存失败", "err");
+          setMsg(humanizeError(data.error || "保存失败"), "err");
           return;
         }
         closeModal();
         await Promise.all([fetchHistory(), fetchLeaderboard()]);
         setMsg("保存成功", "ok");
       } catch (error) {
-        setMsg(`保存失败：${String(error.message || error)}`, "err");
+        setMsg(`保存失败：${humanizeError(String(error.message || error))}`, "err");
+      } finally {
+        setCheckinLoading(false);
       }
     }
 
@@ -330,10 +389,20 @@
       const password = authPasswordEl.value;
       if (!username || !password) {
         authMsgEl.textContent = "请先输入用户名和密码。";
+        setMsg("请先输入用户名和密码。", "err");
         return;
       }
-      registerBtn.disabled = true;
-      loginBtn.disabled = true;
+      if (username.length < 3) {
+        authMsgEl.textContent = "用户名至少 3 位。";
+        setMsg("用户名至少 3 位。", "err");
+        return;
+      }
+      if (password.length < 6) {
+        authMsgEl.textContent = "密码至少 6 位。";
+        setMsg("密码至少 6 位。", "err");
+        return;
+      }
+      setAuthLoading(true, path);
       authMsgEl.textContent = "";
       setMsg(path === "register" ? "注册中..." : "登录中...", "ok");
       try {
@@ -344,8 +413,9 @@
         });
         const data = await parseJsonSafe(res);
         if (!res.ok) {
-          authMsgEl.textContent = data.error || "操作失败";
-          setMsg(data.detail ? `${data.error}：${data.detail}` : (data.error || "操作失败"), "err");
+          const msg = humanizeError(data.error || "操作失败");
+          authMsgEl.textContent = msg;
+          setMsg(msg, "err");
           return;
         }
         setToken(data.token);
@@ -357,10 +427,9 @@
         setMsg(path === "register" ? "注册并登录成功" : "登录成功", "ok");
       } catch (error) {
         authMsgEl.textContent = "网络异常，请稍后重试。";
-        setMsg(`请求失败：${String(error.message || error)}`, "err");
+        setMsg(`请求失败：${humanizeError(String(error.message || error))}`, "err");
       } finally {
-        registerBtn.disabled = false;
-        loginBtn.disabled = false;
+        setAuthLoading(false);
       }
     }
 
@@ -379,6 +448,12 @@
     document.getElementById("registerBtn").addEventListener("click", () => auth("register"));
     document.getElementById("loginBtn").addEventListener("click", () => auth("login"));
     document.getElementById("logoutBtn").addEventListener("click", logout);
+    authPasswordEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") auth("login");
+    });
+    authUsernameEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") auth("login");
+    });
 
     if (getToken()) {
       currentUser = "已登录用户";
